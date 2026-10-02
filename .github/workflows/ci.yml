@@ -13,6 +13,25 @@ jobs:
   backend-test:
     runs-on: ubuntu-latest
 
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: testpass
+          POSTGRES_DB: event_management
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres -d event_management"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=10
+
+    env:
+      DB_PASSWORD: testpass
+      PGPASSWORD: testpass
+
     defaults:
       run:
         working-directory: backend
@@ -30,6 +49,25 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Create events table
+        run: |
+          psql -h localhost -U postgres -d event_management -c "
+          CREATE TABLE events (
+              id SERIAL PRIMARY KEY,
+              organizer_id INTEGER NOT NULL,
+              title VARCHAR(200) NOT NULL,
+              description TEXT,
+              event_date DATE NOT NULL,
+              event_time TIME NOT NULL,
+              venue VARCHAR(255) NOT NULL,
+              capacity INTEGER NOT NULL,
+              registration_open BOOLEAN DEFAULT TRUE,
+              status VARCHAR(30) DEFAULT 'ACTIVE',
+              created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+              updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+          );
+          "
 
       - name: Run backend tests
         run: npm test
