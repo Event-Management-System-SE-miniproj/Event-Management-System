@@ -69,5 +69,23 @@ jobs:
           );
           "
 
+      - name: Create registrations table
+        run: |
+          psql -h localhost -U postgres -d event_management -c "
+          CREATE TABLE registrations (
+              id SERIAL PRIMARY KEY,
+              event_id INTEGER NOT NULL,
+              user_id INTEGER NOT NULL,
+              status VARCHAR(30) DEFAULT 'REGISTERED',
+              created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+              CONSTRAINT fk_registration_event
+                  FOREIGN KEY (event_id)
+                  REFERENCES events(id)
+                  ON DELETE CASCADE,
+              CONSTRAINT unique_event_user
+                  UNIQUE (event_id, user_id)
+          );
+          "
+
       - name: Run backend tests
         run: npm test
