@@ -66,6 +66,7 @@ const createEvent = async (req, res) => {
     }
 };
 
+
 const updateEvent = async (req, res) => {
     try {
         const { id } = req.params;
@@ -153,6 +154,7 @@ const updateEvent = async (req, res) => {
     }
 };
 
+
 const deleteEvent = async (req, res) => {
     try {
         const { id } = req.params;
@@ -191,6 +193,7 @@ const deleteEvent = async (req, res) => {
         });
     }
 };
+
 
 module.exports = {
     createEvent,
