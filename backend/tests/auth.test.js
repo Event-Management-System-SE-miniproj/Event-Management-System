@@ -2,9 +2,10 @@ const request = require("supertest");
 const app = require("../src/app");
 const pool = require("../src/config/database");
 
-describe("User Registration API", () => {
+describe("User Registration and Authentication API", () => {
 
     const testEmail = `test_${Date.now()}@example.com`;
+    const testPassword = "Test@12345";
 
     afterAll(async () => {
         await pool.query(
@@ -15,13 +16,17 @@ describe("User Registration API", () => {
         await pool.end();
     });
 
+    // =========================
+    // F-001: User Registration
+    // =========================
+
     test("TC-REG-01: Create User Account", async () => {
         const response = await request(app)
             .post("/api/auth/register")
             .send({
                 name: "Test User",
                 email: testEmail,
-                password: "Test@12345"
+                password: testPassword
             });
 
         expect(response.statusCode).toBe(201);
@@ -32,7 +37,6 @@ describe("User Registration API", () => {
         expect(response.body.user).toHaveProperty("id");
         expect(response.body.user.email).toBe(testEmail);
 
-        // Password must not be returned
         expect(response.body.user).not.toHaveProperty("password");
         expect(response.body.user).not.toHaveProperty("password_hash");
     });
@@ -43,7 +47,7 @@ describe("User Registration API", () => {
             .send({
                 name: "Duplicate User",
                 email: testEmail,
-                password: "Test@12345"
+                password: testPassword
             });
 
         expect(response.statusCode).toBe(409);
@@ -78,6 +82,59 @@ describe("User Registration API", () => {
         expect(response.statusCode).toBe(400);
         expect(response.body.message).toBe(
             "Password must contain at least 8 characters"
+        );
+    });
+
+    // =========================
+    // F-002: Authentication
+    // =========================
+
+    test("TC-AUTH-01: Login with valid credentials", async () => {
+        const response = await request(app)
+            .post("/api/auth/login")
+            .send({
+                email: testEmail,
+                password: testPassword
+            });
+
+        expect(response.statusCode).toBe(200);
+        expect(response.body.message).toBe("Login successful");
+
+        expect(response.body).toHaveProperty("token");
+        expect(response.body.token).toBeTruthy();
+
+        expect(response.body.user).toHaveProperty("id");
+        expect(response.body.user.email).toBe(testEmail);
+
+        expect(response.body.user).not.toHaveProperty("password");
+        expect(response.body.user).not.toHaveProperty("password_hash");
+    });
+
+    test("Invalid password should be rejected", async () => {
+        const response = await request(app)
+            .post("/api/auth/login")
+            .send({
+                email: testEmail,
+                password: "WrongPassword123"
+            });
+
+        expect(response.statusCode).toBe(401);
+        expect(response.body.message).toBe(
+            "Invalid email or password"
+        );
+    });
+
+    test("Nonexistent email should be rejected", async () => {
+        const response = await request(app)
+            .post("/api/auth/login")
+            .send({
+                email: `doesnotexist_${Date.now()}@example.com`,
+                password: testPassword
+            });
+
+        expect(response.statusCode).toBe(401);
+        expect(response.body.message).toBe(
+            "Invalid email or password"
         );
     });
 });
