@@ -1,0 +1,91 @@
+name: Event Management System CI
+
+on:
+  push:
+    branches:
+      - main
+      - feature/gokul
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  backend-test:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: testpass
+          POSTGRES_DB: event_management
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres -d event_management"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=10
+
+    env:
+      DB_PASSWORD: testpass
+      PGPASSWORD: testpass
+
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Create events table
+        run: |
+          psql -h localhost -U postgres -d event_management -c "
+          CREATE TABLE events (
+              id SERIAL PRIMARY KEY,
+              organizer_id INTEGER NOT NULL,
+              title VARCHAR(200) NOT NULL,
+              description TEXT,
+              event_date DATE NOT NULL,
+              event_time TIME NOT NULL,
+              venue VARCHAR(255) NOT NULL,
+              capacity INTEGER NOT NULL,
+              registration_open BOOLEAN DEFAULT TRUE,
+              status VARCHAR(30) DEFAULT 'ACTIVE',
+              created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+              updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+          );
+          "
+
+      - name: Create registrations table
+        run: |
+          psql -h localhost -U postgres -d event_management -c "
+          CREATE TABLE registrations (
+              id SERIAL PRIMARY KEY,
+              event_id INTEGER NOT NULL,
+              user_id INTEGER NOT NULL,
+              status VARCHAR(30) DEFAULT 'REGISTERED',
+              created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+              CONSTRAINT fk_registration_event
+                  FOREIGN KEY (event_id)
+                  REFERENCES events(id)
+                  ON DELETE CASCADE,
+              CONSTRAINT unique_event_user
+                  UNIQUE (event_id, user_id)
+          );
+          "
+
+      - name: Run backend tests
+        run: npm test
