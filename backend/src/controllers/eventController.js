@@ -194,9 +194,116 @@ const deleteEvent = async (req, res) => {
     }
 };
 
+// F-006: Search and Filter Events
+const getEvents = async (req, res) => {
+    try {
+        const {
+            search,
+            venue,
+            event_date,
+            registration_open
+        } = req.query;
+
+        let query = `
+            SELECT *
+            FROM events
+            WHERE event_date >= CURRENT_DATE
+        `;
+
+        const values = [];
+        let paramIndex = 1;
+
+        // Search by title, description, or venue
+        if (search) {
+            query += `
+                AND (
+                    title ILIKE $${paramIndex}
+                    OR description ILIKE $${paramIndex}
+                    OR venue ILIKE $${paramIndex}
+                )
+            `;
+
+            values.push(`%${search}%`);
+            paramIndex++;
+        }
+
+        // Filter by venue
+        if (venue) {
+            query += ` AND venue ILIKE $${paramIndex}`;
+            values.push(`%${venue}%`);
+            paramIndex++;
+        }
+
+        // Filter by date
+        if (event_date) {
+            query += ` AND event_date = $${paramIndex}`;
+            values.push(event_date);
+            paramIndex++;
+        }
+
+        // Filter by registration status
+        if (registration_open !== undefined) {
+            query += ` AND registration_open = $${paramIndex}`;
+            values.push(registration_open === "true");
+            paramIndex++;
+        }
+
+        query += `
+            ORDER BY event_date ASC, event_time ASC
+        `;
+
+        const result = await pool.query(query, values);
+
+        return res.status(200).json({
+            count: result.rows.length,
+            events: result.rows
+        });
+
+    } catch (error) {
+        console.error("Get events error:", error.message);
+
+        return res.status(500).json({
+            message: "Failed to fetch events"
+        });
+    }
+};
+
+
+// F-007: View Event Details
+const getEventById = async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        const result = await pool.query(
+            `SELECT *
+             FROM events
+             WHERE id = $1`,
+            [id]
+        );
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({
+                message: "Event not found"
+            });
+        }
+
+        return res.status(200).json({
+            event: result.rows[0]
+        });
+
+    } catch (error) {
+        console.error("Get event details error:", error.message);
+
+        return res.status(500).json({
+            message: "Failed to fetch event details"
+        });
+    }
+};
 
 module.exports = {
     createEvent,
     updateEvent,
-    deleteEvent
+    deleteEvent,
+    getEvents,
+    getEventById
 };
