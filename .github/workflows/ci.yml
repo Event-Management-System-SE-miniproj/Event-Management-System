@@ -50,6 +50,20 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Create users table
+        run: |
+          PGPASSWORD=testpass psql -h localhost -U postgres -d event_management -c "
+            CREATE TABLE IF NOT EXISTS users (
+              id SERIAL PRIMARY KEY,
+              name VARCHAR(100) NOT NULL,
+              email VARCHAR(255) NOT NULL UNIQUE,
+              password_hash TEXT NOT NULL,
+              role VARCHAR(20) NOT NULL DEFAULT 'USER',
+              created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+              updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+          "
+
       - name: Create events table
         run: |
           psql -h localhost -U postgres -d event_management -c "
