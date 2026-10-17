@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - feature/gokul
+      - feature/aaryesh-auth
   pull_request:
     branches:
       - main
@@ -31,6 +32,7 @@ jobs:
     env:
       DB_PASSWORD: testpass
       PGPASSWORD: testpass
+      JWT_SECRET: test_jwt_secret_for_ci_only
 
     defaults:
       run:
