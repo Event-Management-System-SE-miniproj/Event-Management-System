@@ -5,7 +5,7 @@ const pool = require("../config/database");
 // F-001: User Account Creation
 const registerUser = async (req, res) => {
     try {
-        const { name, email, password } = req.body;
+        const { name, email, password, role } = req.body;
 
         // Validate required fields
         if (!name || !email || !password) {
@@ -18,6 +18,15 @@ const registerUser = async (req, res) => {
         if (password.length < 8) {
             return res.status(400).json({
                 message: "Password must contain at least 8 characters"
+            });
+        }
+
+        // Validate role
+        const selectedRole = role || "user";
+
+        if (!["user", "organizer"].includes(selectedRole)) {
+            return res.status(400).json({
+                message: "Invalid role selected"
             });
         }
 
@@ -39,16 +48,17 @@ const registerUser = async (req, res) => {
         // Hash password
         const passwordHash = await bcrypt.hash(password, 12);
 
-        // Insert user into database
+        // Insert user
         const result = await pool.query(
             `INSERT INTO users
-                (name, email, password_hash)
-             VALUES ($1, $2, $3)
+                (name, email, password_hash, role)
+             VALUES ($1, $2, $3, $4)
              RETURNING id, name, email, role, created_at`,
             [
                 name.trim(),
                 normalizedEmail,
-                passwordHash
+                passwordHash,
+                selectedRole
             ]
         );
 
@@ -58,13 +68,14 @@ const registerUser = async (req, res) => {
         });
 
     } catch (error) {
-        console.error("Registration error:", error.message);
+        console.error("Registration error:", error);
 
         return res.status(500).json({
             message: "Failed to create account"
         });
     }
 };
+
 
 // F-002: User Authentication
 const loginUser = async (req, res) => {
@@ -89,6 +100,7 @@ const loginUser = async (req, res) => {
             [normalizedEmail]
         );
 
+        // User not found
         if (result.rows.length === 0) {
             return res.status(401).json({
                 message: "Invalid email or password"
@@ -97,7 +109,7 @@ const loginUser = async (req, res) => {
 
         const user = result.rows[0];
 
-        // Compare entered password with stored hash
+        // Check password
         const passwordMatch = await bcrypt.compare(
             password,
             user.password_hash
@@ -134,13 +146,14 @@ const loginUser = async (req, res) => {
         });
 
     } catch (error) {
-        console.error("Login error:", error.message);
+        console.error("Login error:", error);
 
         return res.status(500).json({
             message: "Failed to authenticate user"
         });
     }
 };
+
 
 module.exports = {
     registerUser,
