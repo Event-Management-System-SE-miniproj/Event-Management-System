@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useRouter, Link } from '../context/RouterContext';
@@ -7,16 +8,17 @@ import './AuthForm.css';
 export default function Register() {
   const { register, isAuthenticated } = useAuth();
   const { navigate } = useRouter();
-  const { success, error, info } = useToast();
+  const { success, error } = useToast();
 
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [role, setRole] = useState('USER');
   const [fieldErrors, setFieldErrors] = useState({});
   const [submitting, setSubmitting] = useState(false);
 
-  // If already authenticated, redirect to events
+  // Redirect authenticated users to the events page.
   React.useEffect(() => {
     if (isAuthenticated) {
       navigate('/events');
@@ -44,8 +46,14 @@ export default function Register() {
       errors.password = 'Password must contain at least 8 characters.';
     }
 
-    if (password !== confirmPassword) {
+    if (!confirmPassword) {
+      errors.confirmPassword = 'Please confirm your password.';
+    } else if (password !== confirmPassword) {
       errors.confirmPassword = 'Passwords do not match.';
+    }
+
+    if (!['USER', 'ORGANIZER'].includes(role)) {
+      errors.role = 'Please select a valid account type.';
     }
 
     setFieldErrors(errors);
@@ -62,20 +70,28 @@ export default function Register() {
 
     try {
       setSubmitting(true);
+
       const res = await register({
         name: name.trim(),
         email: email.trim(),
         password,
+        role,
       });
 
-      success(res?.message || 'Account created successfully! Please sign in.');
+      success(
+        res?.message || 'Account created successfully! Please sign in.'
+      );
+
       navigate('/login');
     } catch (err) {
-      // Backend error response format: { message: "Email is already registered" }
       const message = err.message || 'Failed to create account.';
       error(message);
+
       if (err.status === 409) {
-        setFieldErrors((prev) => ({ ...prev, email: 'This email is already registered.' }));
+        setFieldErrors((prev) => ({
+          ...prev,
+          email: 'This email is already registered.',
+        }));
       }
     } finally {
       setSubmitting(false);
@@ -101,14 +117,19 @@ export default function Register() {
               type="text"
               className={`form-control ${fieldErrors.name ? 'input-error' : ''}`}
               placeholder="e.g. Alex Johnson"
+              autoComplete="name"
               required
               value={name}
               onChange={(e) => {
                 setName(e.target.value);
-                if (fieldErrors.name) setFieldErrors({ ...fieldErrors, name: null });
+                if (fieldErrors.name) {
+                  setFieldErrors((prev) => ({ ...prev, name: null }));
+                }
               }}
             />
-            {fieldErrors.name && <span className="field-error-text">{fieldErrors.name}</span>}
+            {fieldErrors.name && (
+              <span className="field-error-text">{fieldErrors.name}</span>
+            )}
           </div>
 
           <div className="form-group">
@@ -120,14 +141,43 @@ export default function Register() {
               type="email"
               className={`form-control ${fieldErrors.email ? 'input-error' : ''}`}
               placeholder="name@pes.edu"
+              autoComplete="email"
               required
               value={email}
               onChange={(e) => {
                 setEmail(e.target.value);
-                if (fieldErrors.email) setFieldErrors({ ...fieldErrors, email: null });
+                if (fieldErrors.email) {
+                  setFieldErrors((prev) => ({ ...prev, email: null }));
+                }
               }}
             />
-            {fieldErrors.email && <span className="field-error-text">{fieldErrors.email}</span>}
+            {fieldErrors.email && (
+              <span className="field-error-text">{fieldErrors.email}</span>
+            )}
+          </div>
+
+          <div className="form-group">
+            <label className="form-label" htmlFor="register-role">
+              Account Type *
+            </label>
+            <select
+              id="register-role"
+              className={`form-control ${fieldErrors.role ? 'input-error' : ''}`}
+              value={role}
+              onChange={(e) => {
+                setRole(e.target.value);
+                if (fieldErrors.role) {
+                  setFieldErrors((prev) => ({ ...prev, role: null }));
+                }
+              }}
+              required
+            >
+              <option value="USER">Regular User</option>
+              <option value="ORGANIZER">Event Organizer</option>
+            </select>
+            {fieldErrors.role && (
+              <span className="field-error-text">{fieldErrors.role}</span>
+            )}
           </div>
 
           <div className="form-group">
@@ -138,35 +188,51 @@ export default function Register() {
               id="register-password"
               type="password"
               className={`form-control ${fieldErrors.password ? 'input-error' : ''}`}
-              placeholder="••••••••"
+              placeholder="Enter your password"
+              autoComplete="new-password"
               required
               value={password}
               onChange={(e) => {
                 setPassword(e.target.value);
-                if (fieldErrors.password) setFieldErrors({ ...fieldErrors, password: null });
+                if (fieldErrors.password) {
+                  setFieldErrors((prev) => ({ ...prev, password: null }));
+                }
               }}
             />
-            {fieldErrors.password && <span className="field-error-text">{fieldErrors.password}</span>}
+            {fieldErrors.password && (
+              <span className="field-error-text">{fieldErrors.password}</span>
+            )}
           </div>
 
           <div className="form-group">
-            <label className="form-label" htmlFor="register-confirm-password">
+            <label
+              className="form-label"
+              htmlFor="register-confirm-password"
+            >
               Confirm Password *
             </label>
             <input
               id="register-confirm-password"
               type="password"
               className={`form-control ${fieldErrors.confirmPassword ? 'input-error' : ''}`}
-              placeholder="••••••••"
+              placeholder="Confirm your password"
+              autoComplete="new-password"
               required
               value={confirmPassword}
               onChange={(e) => {
                 setConfirmPassword(e.target.value);
-                if (fieldErrors.confirmPassword) setFieldErrors({ ...fieldErrors, confirmPassword: null });
+                if (fieldErrors.confirmPassword) {
+                  setFieldErrors((prev) => ({
+                    ...prev,
+                    confirmPassword: null,
+                  }));
+                }
               }}
             />
             {fieldErrors.confirmPassword && (
-              <span className="field-error-text">{fieldErrors.confirmPassword}</span>
+              <span className="field-error-text">
+                {fieldErrors.confirmPassword}
+              </span>
             )}
           </div>
 

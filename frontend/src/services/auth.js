@@ -9,8 +9,8 @@ export const authService = {
    * F-001: Register a new user account
    * Endpoint: POST /api/auth/register
    */
-  async register({ name, email, password }) {
-    return await api.post('/api/auth/register', { name, email, password });
+  async register({ name, email, password, role }) {
+    return await api.post('/api/auth/register', { name, email, password, role });
   },
 
   /**
