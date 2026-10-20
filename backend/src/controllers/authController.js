@@ -1,3 +1,4 @@
+
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const pool = require("../config/database");
@@ -5,7 +6,7 @@ const pool = require("../config/database");
 // F-001: User Account Creation
 const registerUser = async (req, res) => {
     try {
-        const { name, email, password, role } = req.body;
+        const { name, email, password } = req.body;
 
         // Validate required fields
         if (!name || !email || !password) {
@@ -21,10 +22,12 @@ const registerUser = async (req, res) => {
             });
         }
 
-        // Validate role
-        const selectedRole = role || "user";
+        // Validate and normalize role
+        const role = String(req.body.role || "USER")
+            .trim()
+            .toUpperCase();
 
-        if (!["user", "organizer"].includes(selectedRole)) {
+        if (!["USER", "ORGANIZER"].includes(role)) {
             return res.status(400).json({
                 message: "Invalid role selected"
             });
@@ -48,17 +51,17 @@ const registerUser = async (req, res) => {
         // Hash password
         const passwordHash = await bcrypt.hash(password, 12);
 
-        // Insert user
+        // Insert user with selected role
         const result = await pool.query(
             `INSERT INTO users
                 (name, email, password_hash, role)
              VALUES ($1, $2, $3, $4)
-             RETURNING id, name, email, role, created_at`,
+             RETURNING id, name, email, role`,
             [
                 name.trim(),
                 normalizedEmail,
                 passwordHash,
-                selectedRole
+                role
             ]
         );
 
@@ -121,12 +124,12 @@ const loginUser = async (req, res) => {
             });
         }
 
-        // Create JWT
+        // Create JWT containing the actual database role
         const token = jwt.sign(
             {
                 id: user.id,
                 email: user.email,
-                role: user.role
+                role: String(user.role).toUpperCase()
             },
             process.env.JWT_SECRET,
             {
@@ -141,7 +144,7 @@ const loginUser = async (req, res) => {
                 id: user.id,
                 name: user.name,
                 email: user.email,
-                role: user.role
+                role: String(user.role).toUpperCase()
             }
         });
 
