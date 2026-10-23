@@ -112,11 +112,17 @@ const loginUser = async (req, res) => {
 
         const user = result.rows[0];
 
-        // Check password
+        // Compare entered password with stored password hash
         const passwordMatch = await bcrypt.compare(
             password,
             user.password_hash
         );
+
+        // Temporary debugging
+        console.log("LOGIN DEBUG");
+        console.log("Email received:", normalizedEmail);
+        console.log("User found:", user.email);
+        console.log("Password match:", passwordMatch);
 
         if (!passwordMatch) {
             return res.status(401).json({
