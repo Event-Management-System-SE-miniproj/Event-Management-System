@@ -15,6 +15,7 @@ export default function Register() {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [role, setRole] = useState('USER');
+  const [organizationName, setOrganizationName] = useState('');
   const [fieldErrors, setFieldErrors] = useState({});
   const [submitting, setSubmitting] = useState(false);
 
@@ -56,6 +57,10 @@ export default function Register() {
       errors.role = 'Please select a valid account type.';
     }
 
+    if (role === 'ORGANIZER' && !organizationName.trim()) {
+      errors.organizationName = 'Organization name is required for organizers.';
+    }
+
     setFieldErrors(errors);
     return Object.keys(errors).length === 0;
   };
@@ -76,6 +81,9 @@ export default function Register() {
         email: email.trim(),
         password,
         role,
+        ...(role === 'ORGANIZER' && {
+          organizationName: organizationName.trim(),
+        }),
       });
 
       success(
@@ -108,6 +116,34 @@ export default function Register() {
         </div>
 
         <form className="auth-form" onSubmit={handleSubmit} noValidate>
+
+          <div className="form-group">
+            <label className="form-label" htmlFor="register-role">
+              Account Type *
+            </label>
+            <select
+              id="register-role"
+              className={`form-control ${fieldErrors.role ? 'input-error' : ''}`}
+              value={role}
+              onChange={(e) => {
+                setRole(e.target.value);
+                setOrganizationName('');
+                setFieldErrors((prev) => ({
+                  ...prev,
+                  role: null,
+                  organizationName: null,
+                }));
+              }}
+              required
+            >
+              <option value="USER">Regular User</option>
+              <option value="ORGANIZER">Event Organizer</option>
+            </select>
+            {fieldErrors.role && (
+              <span className="field-error-text">{fieldErrors.role}</span>
+            )}
+          </div>
+
           <div className="form-group">
             <label className="form-label" htmlFor="register-name">
               Full Name *
@@ -132,6 +168,36 @@ export default function Register() {
             )}
           </div>
 
+          {role === 'ORGANIZER' && (
+            <div className="form-group">
+              <label className="form-label" htmlFor="organization-name">
+                Organization Name *
+              </label>
+              <input
+                id="organization-name"
+                type="text"
+                className={`form-control ${
+                  fieldErrors.organizationName ? 'input-error' : ''
+                }`}
+                placeholder="e.g. PES Coding Club"
+                value={organizationName}
+                onChange={(e) => {
+                  setOrganizationName(e.target.value);
+                  setFieldErrors((prev) => ({
+                    ...prev,
+                    organizationName: null,
+                  }));
+                }}
+                required
+              />
+              {fieldErrors.organizationName && (
+                <span className="field-error-text">
+                  {fieldErrors.organizationName}
+                </span>
+              )}
+            </div>
+          )}
+
           <div className="form-group">
             <label className="form-label" htmlFor="register-email">
               Email Address *
@@ -153,30 +219,6 @@ export default function Register() {
             />
             {fieldErrors.email && (
               <span className="field-error-text">{fieldErrors.email}</span>
-            )}
-          </div>
-
-          <div className="form-group">
-            <label className="form-label" htmlFor="register-role">
-              Account Type *
-            </label>
-            <select
-              id="register-role"
-              className={`form-control ${fieldErrors.role ? 'input-error' : ''}`}
-              value={role}
-              onChange={(e) => {
-                setRole(e.target.value);
-                if (fieldErrors.role) {
-                  setFieldErrors((prev) => ({ ...prev, role: null }));
-                }
-              }}
-              required
-            >
-              <option value="USER">Regular User</option>
-              <option value="ORGANIZER">Event Organizer</option>
-            </select>
-            {fieldErrors.role && (
-              <span className="field-error-text">{fieldErrors.role}</span>
             )}
           </div>
 

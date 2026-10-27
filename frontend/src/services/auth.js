@@ -1,3 +1,4 @@
+
 import { api, tokenStorage, userStorage } from './api';
 
 /**
@@ -9,8 +10,14 @@ export const authService = {
    * F-001: Register a new user account
    * Endpoint: POST /api/auth/register
    */
-  async register({ name, email, password, role }) {
-    return await api.post('/api/auth/register', { name, email, password, role });
+  async register({ name, email, password, role, organizationName }) {
+    return await api.post('/api/auth/register', {
+      name,
+      email,
+      password,
+      role,
+      ...(organizationName ? { organizationName } : {}),
+    });
   },
 
   /**
