@@ -13,6 +13,8 @@ export default function Register() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [role, setRole] = useState('user');
+  const [organizationName, setOrganizationName] = useState('');
   const [fieldErrors, setFieldErrors] = useState({});
   const [submitting, setSubmitting] = useState(false);
 
@@ -48,6 +50,10 @@ export default function Register() {
       errors.confirmPassword = 'Passwords do not match.';
     }
 
+    if (role === 'organizer' && !organizationName.trim()) {
+      errors.organizationName = 'Organization name is required for organizers.';
+    }
+
     setFieldErrors(errors);
     return Object.keys(errors).length === 0;
   };
@@ -62,10 +68,15 @@ export default function Register() {
 
     try {
       setSubmitting(true);
+
       const res = await register({
         name: name.trim(),
         email: email.trim(),
         password,
+        role,
+        organizationName: role === 'organizer'
+          ? organizationName.trim()
+          : undefined,
       });
 
       success(res?.message || 'Account created successfully! Please sign in.');
@@ -74,8 +85,12 @@ export default function Register() {
       // Backend error response format: { message: "Email is already registered" }
       const message = err.message || 'Failed to create account.';
       error(message);
+
       if (err.status === 409) {
-        setFieldErrors((prev) => ({ ...prev, email: 'This email is already registered.' }));
+        setFieldErrors((prev) => ({
+          ...prev,
+          email: 'This email is already registered.'
+        }));
       }
     } finally {
       setSubmitting(false);
@@ -92,6 +107,30 @@ export default function Register() {
         </div>
 
         <form className="auth-form" onSubmit={handleSubmit} noValidate>
+
+          <div className="form-group">
+            <label className="form-label" htmlFor="register-role">
+              Account Type *
+            </label>
+
+            <select
+              id="register-role"
+              className="form-control"
+              value={role}
+              onChange={(e) => {
+                setRole(e.target.value);
+                setOrganizationName('');
+                setFieldErrors({
+                  ...fieldErrors,
+                  organizationName: null
+                });
+              }}
+            >
+              <option value="user">Member</option>
+              <option value="organizer">Event Organizer</option>
+            </select>
+          </div>
+
           <div className="form-group">
             <label className="form-label" htmlFor="register-name">
               Full Name *
@@ -110,6 +149,38 @@ export default function Register() {
             />
             {fieldErrors.name && <span className="field-error-text">{fieldErrors.name}</span>}
           </div>
+
+          {role === 'organizer' && (
+            <div className="form-group">
+              <label className="form-label" htmlFor="organization-name">
+                Organization Name *
+              </label>
+              <input
+                id="organization-name"
+                type="text"
+                className={`form-control ${
+                  fieldErrors.organizationName ? 'input-error' : ''
+                }`}
+                placeholder="e.g. PES Coding Club"
+                required
+                value={organizationName}
+                onChange={(e) => {
+                  setOrganizationName(e.target.value);
+                  if (fieldErrors.organizationName) {
+                    setFieldErrors({
+                      ...fieldErrors,
+                      organizationName: null
+                    });
+                  }
+                }}
+              />
+              {fieldErrors.organizationName && (
+                <span className="field-error-text">
+                  {fieldErrors.organizationName}
+                </span>
+              )}
+            </div>
+          )}
 
           <div className="form-group">
             <label className="form-label" htmlFor="register-email">
