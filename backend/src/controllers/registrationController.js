@@ -43,9 +43,9 @@ const registerForEvent = async (req, res) => {
 
         const registrationResult = await client.query(
             `SELECT COUNT(*)::INTEGER AS registered_count
-             FROM registrations
-             WHERE event_id = $1
-               AND status = 'REGISTERED'`,
+            FROM registrations
+            WHERE event_id = $1
+            AND status IN ('PENDING_PAYMENT', 'REGISTERED')`,
             [event_id]
         );
 
