@@ -16,7 +16,6 @@ const registerForEvent = async (req, res) => {
 
         await client.query("BEGIN");
 
-        // Lock the event row while checking capacity
         const eventResult = await client.query(
             `SELECT id, capacity, registration_open
              FROM events
@@ -27,7 +26,6 @@ const registerForEvent = async (req, res) => {
 
         if (eventResult.rows.length === 0) {
             await client.query("ROLLBACK");
-
             return res.status(404).json({
                 message: "Event not found"
             });
@@ -37,7 +35,6 @@ const registerForEvent = async (req, res) => {
 
         if (!event.registration_open) {
             await client.query("ROLLBACK");
-
             return res.status(400).json({
                 message: "Registration is closed for this event"
             });
@@ -56,7 +53,6 @@ const registerForEvent = async (req, res) => {
 
         if (registeredCount >= event.capacity) {
             await client.query("ROLLBACK");
-
             return res.status(400).json({
                 message: "Event capacity has been reached"
             });
@@ -72,7 +68,6 @@ const registerForEvent = async (req, res) => {
 
         if (duplicateResult.rows.length > 0) {
             await client.query("ROLLBACK");
-
             return res.status(409).json({
                 message: "User is already registered for this event"
             });
@@ -95,7 +90,6 @@ const registerForEvent = async (req, res) => {
 
     } catch (error) {
         await client.query("ROLLBACK");
-
         console.error("Registration error:", error.message);
 
         return res.status(500).json({
@@ -137,10 +131,7 @@ const getMyRegistrations = async (req, res) => {
         });
 
     } catch (error) {
-        console.error(
-            "Registration retrieval error:",
-            error.message
-        );
+        console.error("Registration retrieval error:", error.message);
 
         return res.status(500).json({
             message: "Failed to retrieve registrations"
@@ -149,7 +140,94 @@ const getMyRegistrations = async (req, res) => {
 };
 
 
+// F-012: Cancel an eligible registration
+const cancelRegistration = async (req, res) => {
+    const client = await pool.connect();
+    let transactionStarted = false;
+
+    try {
+        const userId = req.user.id;
+        const registrationId = Number(req.params.id);
+
+        if (!Number.isInteger(registrationId) || registrationId <= 0) {
+            return res.status(400).json({
+                message: "Invalid registration ID"
+            });
+        }
+
+        await client.query("BEGIN");
+        transactionStarted = true;
+
+        const registrationResult = await client.query(
+            `SELECT id, status
+             FROM registrations
+             WHERE id = $1 AND user_id = $2
+             FOR UPDATE`,
+            [registrationId, userId]
+        );
+
+        if (registrationResult.rows.length === 0) {
+            await client.query("ROLLBACK");
+            transactionStarted = false;
+
+            return res.status(404).json({
+                message: "Registration not found"
+            });
+        }
+
+        const registration = registrationResult.rows[0];
+
+        if (!["PENDING_PAYMENT", "REGISTERED"].includes(registration.status)) {
+            await client.query("ROLLBACK");
+            transactionStarted = false;
+
+            return res.status(400).json({
+                message: "This registration cannot be cancelled"
+            });
+        }
+
+        const result = await client.query(
+            `UPDATE registrations
+             SET status = 'CANCELLED'
+             WHERE id = $1
+             RETURNING *`,
+            [registrationId]
+        );
+
+        await client.query(
+            `UPDATE tickets
+             SET status = 'CANCELLED'
+             WHERE registration_id = $1`,
+            [registrationId]
+        );
+
+        await client.query("COMMIT");
+        transactionStarted = false;
+
+        return res.status(200).json({
+            message: "Registration cancelled successfully",
+            registration: result.rows[0]
+        });
+
+    } catch (error) {
+        if (transactionStarted) {
+            await client.query("ROLLBACK");
+        }
+
+        console.error("Registration cancellation error:", error.message);
+
+        return res.status(500).json({
+            message: "Failed to cancel registration"
+        });
+
+    } finally {
+        client.release();
+    }
+};
+
+
 module.exports = {
     registerForEvent,
-    getMyRegistrations
+    getMyRegistrations,
+    cancelRegistration
 };
