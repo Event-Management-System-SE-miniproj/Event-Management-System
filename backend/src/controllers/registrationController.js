@@ -226,8 +226,73 @@ const cancelRegistration = async (req, res) => {
 };
 
 
+// F-013: View participants for organizer's event
+const getEventParticipants = async (req, res) => {
+    try {
+        const eventId = Number(req.params.eventId);
+
+        if (!Number.isInteger(eventId) || eventId <= 0) {
+            return res.status(400).json({
+                message: "Invalid event ID"
+            });
+        }
+
+        if (req.user.role !== "ORGANIZER") {
+            return res.status(403).json({
+                message: "Organizer access required"
+            });
+        }
+
+        const result = await pool.query(
+            `SELECT e.id AS event_id,
+                    e.title AS event_title,
+                    r.id AS registration_id,
+                    r.status AS registration_status,
+                    r.created_at AS registered_at,
+                    u.id AS participant_id,
+                    u.name AS participant_name,
+                    u.email AS participant_email
+             FROM events e
+             LEFT JOIN registrations r ON r.event_id = e.id
+             LEFT JOIN users u ON u.id = r.user_id
+             WHERE e.id = $1 AND e.organizer_id = $2
+             ORDER BY r.created_at DESC`,
+            [eventId, req.user.id]
+        );
+
+        if (!result.rows.length) {
+            return res.status(404).json({
+                message: "Event not found or you are not authorized"
+            });
+        }
+
+        const participants = result.rows
+            .filter(row => row.registration_id !== null)
+            .map(({ event_id, event_title, ...participant }) => participant);
+
+        return res.status(200).json({
+            message: "Event participants retrieved successfully",
+            event: {
+                id: result.rows[0].event_id,
+                title: result.rows[0].event_title
+            },
+            count: participants.length,
+            participants
+        });
+
+    } catch (error) {
+        console.error("Event participants error:", error.message);
+
+        return res.status(500).json({
+            message: "Failed to retrieve event participants"
+        });
+    }
+};
+
+
 module.exports = {
     registerForEvent,
     getMyRegistrations,
-    cancelRegistration
+    cancelRegistration,
+    getEventParticipants
 };
