@@ -1,3 +1,4 @@
+
 name: Event Management System CI
 
 on:
@@ -53,7 +54,7 @@ jobs:
 
       - name: Create users table
         run: |
-          PGPASSWORD=testpass psql -h localhost -U postgres -d event_management -c "
+          psql -h localhost -U postgres -d event_management -c "
             CREATE TABLE IF NOT EXISTS users (
               id SERIAL PRIMARY KEY,
               name VARCHAR(100) NOT NULL,
@@ -68,7 +69,7 @@ jobs:
       - name: Create events table
         run: |
           psql -h localhost -U postgres -d event_management -c "
-          CREATE TABLE events (
+          CREATE TABLE IF NOT EXISTS events (
               id SERIAL PRIMARY KEY,
               organizer_id INTEGER NOT NULL,
               title VARCHAR(200) NOT NULL,
@@ -87,7 +88,7 @@ jobs:
       - name: Create registrations table
         run: |
           psql -h localhost -U postgres -d event_management -c "
-          CREATE TABLE registrations (
+          CREATE TABLE IF NOT EXISTS registrations (
               id SERIAL PRIMARY KEY,
               event_id INTEGER NOT NULL,
               user_id INTEGER NOT NULL,
@@ -99,6 +100,20 @@ jobs:
                   ON DELETE CASCADE,
               CONSTRAINT unique_event_user
                   UNIQUE (event_id, user_id)
+          );
+          "
+
+      - name: Create tickets table
+        run: |
+          psql -h localhost -U postgres -d event_management -c "
+          CREATE TABLE IF NOT EXISTS tickets (
+              id SERIAL PRIMARY KEY,
+              registration_id INTEGER NOT NULL UNIQUE
+                  REFERENCES registrations(id) ON DELETE CASCADE,
+              ticket_code VARCHAR(100) NOT NULL UNIQUE,
+              status VARCHAR(20) NOT NULL DEFAULT 'VALID'
+                  CHECK (status IN ('VALID', 'CANCELLED')),
+              generated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
           );
           "
 
