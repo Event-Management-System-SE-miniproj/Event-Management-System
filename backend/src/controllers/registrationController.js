@@ -1,5 +1,7 @@
+
 const pool = require("../config/database");
 
+// F-008/F-009: Register for Event + Enforce Capacity
 const registerForEvent = async (req, res) => {
     const client = await pool.connect();
 
@@ -43,9 +45,9 @@ const registerForEvent = async (req, res) => {
 
         const registrationResult = await client.query(
             `SELECT COUNT(*)::INTEGER AS registered_count
-            FROM registrations
-            WHERE event_id = $1
-            AND status IN ('PENDING_PAYMENT', 'REGISTERED')`,
+             FROM registrations
+             WHERE event_id = $1
+             AND status IN ('PENDING_PAYMENT', 'REGISTERED')`,
             [event_id]
         );
 
@@ -64,7 +66,7 @@ const registerForEvent = async (req, res) => {
             `SELECT id
              FROM registrations
              WHERE event_id = $1
-               AND user_id = $2`,
+             AND user_id = $2`,
             [event_id, user_id]
         );
 
@@ -78,9 +80,9 @@ const registerForEvent = async (req, res) => {
 
         const result = await client.query(
             `INSERT INTO registrations
-            (event_id, user_id, status)
-            VALUES ($1, $2, $3)
-            RETURNING *`,
+             (event_id, user_id, status)
+             VALUES ($1, $2, $3)
+             RETURNING *`,
             [event_id, user_id, "PENDING_PAYMENT"]
         );
 
@@ -105,6 +107,49 @@ const registerForEvent = async (req, res) => {
     }
 };
 
+
+// F-012: View registrations of authenticated user
+const getMyRegistrations = async (req, res) => {
+    try {
+        const userId = req.user.id;
+
+        const result = await pool.query(
+            `SELECT
+                r.id AS registration_id,
+                r.event_id,
+                r.status AS registration_status,
+                r.created_at AS registered_at,
+                e.title AS event_title,
+                e.description,
+                e.event_date,
+                e.event_time,
+                e.venue
+             FROM registrations r
+             JOIN events e ON e.id = r.event_id
+             WHERE r.user_id = $1
+             ORDER BY r.created_at DESC`,
+            [userId]
+        );
+
+        return res.status(200).json({
+            message: "Registrations retrieved successfully",
+            registrations: result.rows
+        });
+
+    } catch (error) {
+        console.error(
+            "Registration retrieval error:",
+            error.message
+        );
+
+        return res.status(500).json({
+            message: "Failed to retrieve registrations"
+        });
+    }
+};
+
+
 module.exports = {
-    registerForEvent
+    registerForEvent,
+    getMyRegistrations
 };
