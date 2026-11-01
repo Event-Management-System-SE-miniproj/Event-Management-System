@@ -25,24 +25,8 @@ describe("EMS-F-014: Event Notifications & Registration Confirmation", () => {
     const testPassword = "Password@123";
 
     beforeAll(async () => {
-        // Ensure notifications table exists
-        await pool.query(`
-            CREATE TABLE IF NOT EXISTS notifications (
-                id SERIAL PRIMARY KEY,
-                user_id INTEGER NOT NULL,
-                recipient_email VARCHAR(255) NOT NULL,
-                event_id INTEGER,
-                registration_id INTEGER,
-                type VARCHAR(50) NOT NULL,
-                title VARCHAR(255) NOT NULL,
-                message TEXT NOT NULL,
-                status VARCHAR(20) NOT NULL DEFAULT 'SENT',
-                is_read BOOLEAN NOT NULL DEFAULT FALSE,
-                read_at TIMESTAMP,
-                sent_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            );
-        `);
+        const initDb = require("../src/config/initDb");
+        await initDb();
 
         // Register organizer
         const orgRes = await request(app)
@@ -146,24 +130,6 @@ describe("EMS-F-014: Event Notifications & Registration Confirmation", () => {
     beforeEach(() => {
         const provider = resetNotificationProvider();
         provider.clear();
-    });
-
-    afterAll(async () => {
-        await pool.query("DELETE FROM notifications WHERE recipient_email IN ($1, $2, $3, $4)", [
-            orgEmail,
-            user1Email,
-            user2Email,
-            userUnregEmail
-        ]);
-        await pool.query("DELETE FROM registrations WHERE event_id IN ($1, $2)", [eventId, eventId2]);
-        await pool.query("DELETE FROM events WHERE id IN ($1, $2)", [eventId, eventId2]);
-        await pool.query("DELETE FROM users WHERE id IN ($1, $2, $3, $4)", [
-            organizerId,
-            userId1,
-            userId2,
-            userIdUnregistered
-        ]);
-        await pool.end();
     });
 
     test("TC-NOTIF-01: A successful registration generates a confirmation notification", async () => {
@@ -437,5 +403,23 @@ describe("EMS-F-014: Event Notifications & Registration Confirmation", () => {
             [userIdUnregistered, tempEvtId]
         );
         expect(unregCancel.rows.length).toBe(0);
+    });
+
+    afterAll(async () => {
+        await pool.query("DELETE FROM notifications WHERE recipient_email IN ($1, $2, $3, $4)", [
+            orgEmail,
+            user1Email,
+            user2Email,
+            userUnregEmail
+        ]);
+        await pool.query("DELETE FROM registrations WHERE event_id IN ($1, $2)", [eventId, eventId2]);
+        await pool.query("DELETE FROM events WHERE id IN ($1, $2)", [eventId, eventId2]);
+        await pool.query("DELETE FROM users WHERE id IN ($1, $2, $3, $4)", [
+            organizerId,
+            userId1,
+            userId2,
+            userIdUnregistered
+        ]);
+        await pool.end();
     });
 });

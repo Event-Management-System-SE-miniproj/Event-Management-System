@@ -26,23 +26,8 @@ describe("EMS-F-015: Administrative Management & Audit Logging", () => {
     const defaultPassword = "AdminSecurePassword123!";
 
     beforeAll(async () => {
-        // Ensure audit_logs and columns exist
-        await pool.query(`
-            ALTER TABLE users ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'ACTIVE';
-            UPDATE users SET status = 'ACTIVE' WHERE status IS NULL;
-            ALTER TABLE events ADD COLUMN IF NOT EXISTS status VARCHAR(30) DEFAULT 'ACTIVE';
-            UPDATE events SET status = 'ACTIVE' WHERE status IS NULL;
-            CREATE TABLE IF NOT EXISTS audit_logs (
-                id SERIAL PRIMARY KEY,
-                admin_id INTEGER NOT NULL,
-                action VARCHAR(100) NOT NULL,
-                target_type VARCHAR(50),
-                target_id INTEGER,
-                details TEXT,
-                status VARCHAR(20) NOT NULL DEFAULT 'SUCCESS',
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            );
-        `);
+        const initDb = require("../src/config/initDb");
+        await initDb();
 
         // Hash password for users
         const passwordHash = await bcrypt.hash(defaultPassword, 12);
@@ -131,27 +116,6 @@ describe("EMS-F-015: Administrative Management & Audit Logging", () => {
             [organizerId, "Event To Be Disabled", "Will be disabled by admin", "2026-11-27", "12:00:00", "Hall 3", 20, true, "ACTIVE"]
         );
         eventToDisableId = evt3.rows[0].id;
-    });
-
-    afterAll(async () => {
-        await pool.query("DELETE FROM audit_logs WHERE admin_id = $1", [adminId]);
-        await pool.query("DELETE FROM registrations WHERE event_id IN ($1, $2, $3)", [
-            activeEventId,
-            pendingEventId,
-            eventToDisableId
-        ]);
-        await pool.query("DELETE FROM events WHERE id IN ($1, $2, $3)", [
-            activeEventId,
-            pendingEventId,
-            eventToDisableId
-        ]);
-        await pool.query("DELETE FROM users WHERE id IN ($1, $2, $3, $4)", [
-            adminId,
-            organizerId,
-            regularUserId,
-            targetUserId
-        ]);
-        await pool.end();
     });
 
     // -------------------------------------------------------------------------
@@ -425,4 +389,26 @@ describe("EMS-F-015: Administrative Management & Audit Logging", () => {
         expect(evtDetail.statusCode).toBe(200);
         expect(evtDetail.body.event.title).toBe("Admin Active Fest");
     });
+    afterAll(async () => {
+        await pool.query("DELETE FROM audit_logs WHERE admin_id = $1", [adminId]);
+        await pool.query("DELETE FROM registrations WHERE event_id IN ($1, $2, $3)", [
+            activeEventId,
+            pendingEventId,
+            eventToDisableId
+        ]);
+        await pool.query("DELETE FROM events WHERE id IN ($1, $2, $3)", [
+            activeEventId,
+            pendingEventId,
+            eventToDisableId
+        ]);
+        await pool.query("DELETE FROM users WHERE id IN ($1, $2, $3, $4)", [
+            adminId,
+            organizerId,
+            regularUserId,
+            targetUserId
+        ]);
+        await pool.end();
+    });
+
+
 });
