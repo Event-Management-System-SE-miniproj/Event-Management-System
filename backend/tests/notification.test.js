@@ -473,6 +473,64 @@ describe("EMS-F-014: Event Notifications & Registration Confirmation", () => {
         }
     });
 
+    test("TC-NOTIF-ERR-01: Provider failure with sensitive credentials sanitizes errors and protects registration state", async () => {
+        // Create mock provider that fails with sensitive credentials in error message
+        class SensitiveErrorProvider {
+            async send() {
+                throw new Error("SMTP authentication failure at smtp://mailer:super_secret_smtp_password@smtp.mail.com:587?pass=my_secret_token");
+            }
+        }
+
+        const { setNotificationProvider } = require("../src/services/notificationService");
+        setNotificationProvider(new SensitiveErrorProvider());
+
+        // Spy on console.error to verify sanitization
+        const errorSpy = jest.spyOn(console, "error").mockImplementation(() => {});
+
+        // Attempt registration
+        const tempEvtRes = await pool.query(
+            `INSERT INTO events
+                (organizer_id, title, description, event_date, event_time, venue, capacity, registration_open)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+             RETURNING id`,
+            [organizerId, "Error Test Workshop", "Test error sanitization", "2026-12-10", "11:00:00", "Lab 9", 10, true]
+        );
+        const tempId = tempEvtRes.rows[0].id;
+
+        const res = await request(app)
+            .post("/api/registrations")
+            .send({
+                event_id: tempId,
+                user_id: userId2
+            });
+
+        // Registration succeeds despite provider failure
+        expect(res.statusCode).toBe(201);
+        expect(res.body.registration).toBeDefined();
+
+        // Notification record is marked FAILED in DB
+        const failedNotifs = await pool.query(
+            `SELECT * FROM notifications WHERE event_id = $1 AND user_id = $2`,
+            [tempId, userId2]
+        );
+        expect(failedNotifs.rows.length).toBe(1);
+        expect(failedNotifs.rows[0].status).toBe("FAILED");
+
+        // Verify credentials were redacted from logged error calls
+        const errorCalls = errorSpy.mock.calls.map(call => call.join(" "));
+        for (const callText of errorCalls) {
+            expect(callText).not.toContain("super_secret_smtp_password");
+            expect(callText).not.toContain("my_secret_token");
+        }
+
+        errorSpy.mockRestore();
+
+        // Teardown temp event
+        await pool.query("DELETE FROM notifications WHERE event_id = $1", [tempId]);
+        await pool.query("DELETE FROM registrations WHERE event_id = $1", [tempId]);
+        await pool.query("DELETE FROM events WHERE id = $1", [tempId]);
+    });
+
     afterAll(async () => {
         await pool.query("DELETE FROM notifications WHERE recipient_email IN ($1, $2, $3, $4)", [
             orgEmail,

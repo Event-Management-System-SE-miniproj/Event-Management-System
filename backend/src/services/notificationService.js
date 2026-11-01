@@ -4,6 +4,16 @@ const pool = require("../config/database");
  * Development / Test Notification Provider
  * Logs outgoing notifications and records them in memory for assertions.
  */
+/**
+ * Sanitize error message to prevent leaking SMTP credentials, passwords, or connection strings.
+ */
+const sanitizeErrorMessage = (errorMsg) => {
+    if (!errorMsg || typeof errorMsg !== "string") return "Notification delivery failure";
+    return errorMsg
+        .replace(/(password|pass|secret|token|auth)=([^\s&]+)/gi, "$1=***")
+        .replace(/([a-zA-Z0-9_.+-]+):([a-zA-Z0-9_.+-]+)@/g, "$1:***@");
+};
+
 class DevelopmentNotificationProvider {
     constructor() {
         this.sentMessages = [];
@@ -158,7 +168,8 @@ const sendNotification = async ({
         return updated.rows[0];
 
     } catch (providerError) {
-        console.error(`[NotificationService] Provider delivery failed for notification #${notification.id}:`, providerError.message);
+        const safeErrorMsg = sanitizeErrorMessage(providerError.message);
+        console.error(`[NotificationService] Provider delivery failed for notification #${notification.id}:`, safeErrorMsg);
 
         // Mark notification as FAILED in database
         const failed = await pool.query(
@@ -219,8 +230,9 @@ const sendRegistrationConfirmation = async (registrationId, eventId, userId) => 
         });
 
     } catch (error) {
-        console.error(`[NotificationService] Failed to send registration confirmation:`, error.message);
-        throw error;
+        const safeMsg = sanitizeErrorMessage(error.message);
+        console.error(`[NotificationService] Failed to send registration confirmation:`, safeMsg);
+        return { success: false, error: "Registration confirmation delivery failed" };
     }
 };
 
@@ -282,8 +294,9 @@ const sendEventNotification = async (eventId, actionType, { title, message }) =>
         return notifications;
 
     } catch (error) {
-        console.error(`[NotificationService] Failed to send event notifications:`, error.message);
-        throw error;
+        const safeMsg = sanitizeErrorMessage(error.message);
+        console.error(`[NotificationService] Failed to send event notifications:`, safeMsg);
+        return [];
     }
 };
 
