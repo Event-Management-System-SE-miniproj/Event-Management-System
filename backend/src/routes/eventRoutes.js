@@ -1,3 +1,4 @@
+
 const express = require("express");
 
 const {
@@ -5,25 +6,38 @@ const {
     updateEvent,
     deleteEvent,
     getEvents,
+    getMyEvents,
     getEventById
 } = require("../controllers/eventController");
 
+const authenticateToken = require("../middleware/authMiddleware");
+
 const router = express.Router();
 
-// F-004: Create Event
-router.post("/", createEvent);
+// ==========================================
+// PROTECTED ORGANIZER ROUTES
+// ==========================================
 
-// F-005: Update Event
-router.put("/:id", updateEvent);
+// Get all events belonging to logged-in organizer
+router.get("/mine", authenticateToken, getMyEvents);
 
-// F-005: Delete Event
-router.delete("/:id", deleteEvent);
+// Create event
+router.post("/", authenticateToken, createEvent);
 
+// Update event
+router.put("/:id", authenticateToken, updateEvent);
 
-// F-006: Search and Filter Events
+// Delete event
+router.delete("/:id", authenticateToken, deleteEvent);
+
+// ==========================================
+// PUBLIC EVENT ROUTES
+// ==========================================
+
+// Get all active upcoming events
 router.get("/", getEvents);
 
-// F-007: View Event Details
+// Get event details
 router.get("/:id", getEventById);
 
 module.exports = router;
