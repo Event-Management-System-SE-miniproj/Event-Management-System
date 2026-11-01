@@ -1,26 +1,23 @@
 
 import { api, apiRequest } from './api';
 
-/**
- * Event Service
- * Communicates with /api/events and /api/registrations endpoints
- */
 export const eventService = {
-  /**
-   * F-006: Search and Filter Events
-   */
+  // Fetch all events with optional filters
   async getEvents(filters = {}) {
     const params = new URLSearchParams();
 
-    if (filters.search && filters.search.trim()) {
+    if (filters.search?.trim()) {
       params.append('search', filters.search.trim());
     }
-    if (filters.venue && filters.venue.trim()) {
+
+    if (filters.venue?.trim()) {
       params.append('venue', filters.venue.trim());
     }
-    if (filters.event_date && filters.event_date.trim()) {
+
+    if (filters.event_date?.trim()) {
       params.append('event_date', filters.event_date.trim());
     }
+
     if (
       filters.registration_open !== undefined &&
       filters.registration_open !== ''
@@ -34,39 +31,29 @@ export const eventService = {
     return await api.get(endpoint);
   },
 
-  /**
-   * F-007: View Event Details by ID
-   */
+  // Fetch a single event
   async getEventById(id) {
     return await api.get(`/api/events/${id}`);
   },
 
-  /**
-   * F-004: Create Event
-   */
+  // Create an event
   async createEvent(eventData) {
     return await api.post('/api/events', eventData);
   },
 
-  /**
-   * F-005: Update Event
-   */
+  // Update an event
   async updateEvent(id, eventData) {
     return await api.put(`/api/events/${id}`, eventData);
   },
 
-  /**
-   * F-005: Delete Event
-   */
+  // Delete an event
   async deleteEvent(id, organizerId) {
     return await api.delete(`/api/events/${id}`, {
       organizer_id: organizerId,
     });
   },
 
-  /**
-   * F-008 & F-009: Register for Event
-   */
+  // Register for an event
   async registerForEvent(eventId, userId) {
     return await api.post('/api/registrations', {
       event_id: eventId,
@@ -74,18 +61,14 @@ export const eventService = {
     });
   },
 
-  /**
-   * F-012: Get registrations of the logged-in user
-   */
+  // Get logged-in user's registrations
   async getMyRegistrations() {
     return await api.get('/api/registrations/my', {
       requiresAuth: true,
     });
   },
 
-  /**
-   * F-012: Cancel an existing registration
-   */
+  // Cancel a registration
   async cancelRegistration(registrationId) {
     return await apiRequest(
       `/api/registrations/${registrationId}/cancel`,
@@ -96,9 +79,7 @@ export const eventService = {
     );
   },
 
-  /**
-   * F-013: Get participants for an organizer's event
-   */
+  // Get participants for an organizer's event
   async getEventParticipants(eventId) {
     return await api.get(
       `/api/registrations/event/${eventId}/participants`,

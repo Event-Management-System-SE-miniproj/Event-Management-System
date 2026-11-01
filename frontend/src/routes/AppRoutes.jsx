@@ -10,6 +10,7 @@ import EventDetails from '../pages/EventDetails';
 import Profile from '../pages/Profile';
 import CreateEvent from '../pages/CreateEvent';
 import EditEvent from '../pages/EditEvent';
+import OrganizerDashboard from '../pages/OrganizerDashboard';
 
 export default function AppRoutes() {
   const { currentPath, navigate } = useRouter();
@@ -73,6 +74,14 @@ export default function AppRoutes() {
       <ProtectedRoute allowedRoles={['ADMIN']}>
         <AdminDashboard />
       </ProtectedRoute>
+    );
+  }
+  // Organizer Dashboard
+  if (currentPath === '/organizer') {
+    return (
+    <ProtectedRoute allowedRoles={['ORGANIZER']}>
+      <OrganizerDashboard />
+    </ProtectedRoute>
     );
   }
   // 404 Not Found fallback
