@@ -1,7 +1,7 @@
 
 const request = require("supertest");
-const app = require("../src/app");
-const pool = require("../src/config/database");
+const app = require("../app");
+const pool = require("../config/database");
 
 describe("F-012: Registration Management API", () => {
     let userId;
@@ -244,3 +244,4 @@ describe("F-012: Registration Management API", () => {
         );
     });
 });
+

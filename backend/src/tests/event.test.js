@@ -1,6 +1,6 @@
 const request = require("supertest");
-const app = require("../src/app");
-const pool = require("../src/config/database");
+const app = require("../app");
+const pool = require("../config/database");
 
 describe("Event Management API", () => {
 

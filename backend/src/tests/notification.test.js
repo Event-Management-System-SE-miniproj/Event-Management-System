@@ -1,10 +1,10 @@
 const request = require("supertest");
-const app = require("../src/app");
-const pool = require("../src/config/database");
+const app = require("../app");
+const pool = require("../config/database");
 const {
     getNotificationProvider,
     resetNotificationProvider
-} = require("../src/services/notificationService");
+} = require("../services/notificationService");
 
 describe("EMS-F-014: Event Notifications & Registration Confirmation", () => {
     let organizerId;
@@ -25,7 +25,7 @@ describe("EMS-F-014: Event Notifications & Registration Confirmation", () => {
     const testPassword = "Password@123";
 
     beforeAll(async () => {
-        const initDb = require("../src/config/initDb");
+        const initDb = require("../config/initDb");
         await initDb();
 
         // Register organizer
@@ -481,7 +481,7 @@ describe("EMS-F-014: Event Notifications & Registration Confirmation", () => {
             }
         }
 
-        const { setNotificationProvider } = require("../src/services/notificationService");
+        const { setNotificationProvider } = require("../services/notificationService");
         setNotificationProvider(new SensitiveErrorProvider());
 
         // Spy on console.error to verify sanitization
@@ -549,3 +549,4 @@ describe("EMS-F-014: Event Notifications & Registration Confirmation", () => {
         await pool.end();
     });
 });
+

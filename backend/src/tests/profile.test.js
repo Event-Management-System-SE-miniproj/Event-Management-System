@@ -1,8 +1,8 @@
 const request = require("supertest");
 const jwt = require("jsonwebtoken");
 
-const app = require("../src/app");
-const pool = require("../src/config/database");
+const app = require("../app");
+const pool = require("../config/database");
 
 describe("F-003: User Profile Management", () => {
 
@@ -107,3 +107,4 @@ describe("F-003: User Profile Management", () => {
         );
     });
 });
+

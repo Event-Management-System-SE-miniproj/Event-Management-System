@@ -1,7 +1,7 @@
 
 const request = require("supertest");
-const app = require("../src/app");
-const pool = require("../src/config/database");
+const app = require("../app");
+const pool = require("../config/database");
 
 describe("F-013: Event Participant Management API", () => {
     let organizerId;
@@ -169,3 +169,4 @@ describe("F-013: Event Participant Management API", () => {
         expect(response.body.participants).toHaveLength(0);
     });
 });
+
