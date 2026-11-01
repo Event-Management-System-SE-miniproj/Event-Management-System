@@ -546,7 +546,29 @@ const enableEvent = async (req, res) => {
  */
 const getAuditLogsList = async (req, res) => {
     try {
-        const { action, targetType, limit, offset } = req.query;
+        const { action, targetType, status, startDate, endDate, adminId, limit, offset } = req.query;
+
+        // Input validation for date range filters
+        if (startDate && isNaN(Date.parse(startDate))) {
+            return res.status(400).json({
+                message: "Invalid startDate format. Use YYYY-MM-DD or ISO 8601 format"
+            });
+        }
+
+        if (endDate && isNaN(Date.parse(endDate))) {
+            return res.status(400).json({
+                message: "Invalid endDate format. Use YYYY-MM-DD or ISO 8601 format"
+            });
+        }
+
+        if (adminId) {
+            const parsedAdminId = Number(adminId);
+            if (!Number.isInteger(parsedAdminId) || parsedAdminId <= 0) {
+                return res.status(400).json({
+                    message: "Invalid adminId parameter: must be a positive integer"
+                });
+            }
+        }
 
         const parsedLimit = limit ? Math.min(Number(limit) || 50, 100) : 50;
         const parsedOffset = offset ? Number(offset) || 0 : 0;
@@ -555,7 +577,11 @@ const getAuditLogsList = async (req, res) => {
             limit: parsedLimit,
             offset: parsedOffset,
             action,
-            targetType
+            targetType,
+            status,
+            startDate,
+            endDate,
+            adminId: adminId ? Number(adminId) : undefined
         });
 
         return res.status(200).json({
@@ -572,9 +598,6 @@ const getAuditLogsList = async (req, res) => {
     }
 };
 
-/**
- * Retrieve specific audit log by ID.
- */
 const getAuditLog = async (req, res) => {
     try {
         const id = Number(req.params.id);

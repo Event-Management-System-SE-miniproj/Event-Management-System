@@ -59,7 +59,16 @@ const logAdminAction = async ({
 /**
  * Retrieve audit logs for administrator review.
  */
-const getAuditLogs = async ({ limit = 50, offset = 0, action, targetType } = {}) => {
+const getAuditLogs = async ({
+    limit = 50,
+    offset = 0,
+    action,
+    targetType,
+    status,
+    startDate,
+    endDate,
+    adminId
+} = {}) => {
     let query = `
         SELECT a.id, a.admin_id, u.name AS admin_name, u.email AS admin_email,
                a.action, a.target_type, a.target_id, a.details, a.status, a.created_at
@@ -82,6 +91,31 @@ const getAuditLogs = async ({ limit = 50, offset = 0, action, targetType } = {})
         paramIndex++;
     }
 
+    if (status) {
+        query += ` AND a.status = $${paramIndex}`;
+        params.push(status.toUpperCase());
+        paramIndex++;
+    }
+
+    if (adminId) {
+        query += ` AND a.admin_id = $${paramIndex}`;
+        params.push(adminId);
+        paramIndex++;
+    }
+
+    if (startDate) {
+        query += ` AND a.created_at >= $${paramIndex}::timestamp`;
+        params.push(startDate);
+        paramIndex++;
+    }
+
+    if (endDate) {
+        const endParam = endDate.length === 10 ? `${endDate} 23:59:59.999` : endDate;
+        query += ` AND a.created_at <= $${paramIndex}::timestamp`;
+        params.push(endParam);
+        paramIndex++;
+    }
+
     query += ` ORDER BY a.created_at DESC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
     params.push(limit, offset);
 
@@ -89,9 +123,6 @@ const getAuditLogs = async ({ limit = 50, offset = 0, action, targetType } = {})
     return result.rows;
 };
 
-/**
- * Retrieve a specific audit log by ID.
- */
 const getAuditLogById = async (id) => {
     const result = await pool.query(
         `SELECT a.id, a.admin_id, u.name AS admin_name, u.email AS admin_email,

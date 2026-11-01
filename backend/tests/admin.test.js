@@ -421,6 +421,63 @@ describe("EMS-F-015: Administrative Management & Audit Logging", () => {
         expect(orgAccess.statusCode).toBe(403);
     });
 
+    test("TC-ADMIN-AUD-01: Audit log retrieval supports status, action, adminId, and date range filters", async () => {
+        // Filter by action
+        const actionRes = await request(app)
+            .get("/api/admin/audit-logs?action=USER_DISABLE")
+            .set("Authorization", `Bearer ${adminToken}`);
+
+        expect(actionRes.statusCode).toBe(200);
+        expect(actionRes.body.logs.length).toBeGreaterThan(0);
+        for (const log of actionRes.body.logs) {
+            expect(log.action).toBe("USER_DISABLE");
+        }
+
+        // Filter by status
+        const statusRes = await request(app)
+            .get("/api/admin/audit-logs?status=SUCCESS")
+            .set("Authorization", `Bearer ${adminToken}`);
+
+        expect(statusRes.statusCode).toBe(200);
+        for (const log of statusRes.body.logs) {
+            expect(log.status).toBe("SUCCESS");
+        }
+
+        // Filter by adminId
+        const adminRes = await request(app)
+            .get(`/api/admin/audit-logs?adminId=${adminId}`)
+            .set("Authorization", `Bearer ${adminToken}`);
+
+        expect(adminRes.statusCode).toBe(200);
+        for (const log of adminRes.body.logs) {
+            expect(log.admin_id).toBe(adminId);
+        }
+
+        // Filter by valid date range
+        const today = new Date().toISOString().split("T")[0];
+        const dateRes = await request(app)
+            .get(`/api/admin/audit-logs?startDate=${today}&endDate=${today}`)
+            .set("Authorization", `Bearer ${adminToken}`);
+
+        expect(dateRes.statusCode).toBe(200);
+        expect(Array.isArray(dateRes.body.logs)).toBe(true);
+
+        // Reject invalid date format
+        const badDateRes = await request(app)
+            .get("/api/admin/audit-logs?startDate=not-a-date")
+            .set("Authorization", `Bearer ${adminToken}`);
+
+        expect(badDateRes.statusCode).toBe(400);
+        expect(badDateRes.body.message).toContain("Invalid startDate format");
+
+        const badAdminIdRes = await request(app)
+            .get("/api/admin/audit-logs?adminId=-1")
+            .set("Authorization", `Bearer ${adminToken}`);
+
+        expect(badAdminIdRes.statusCode).toBe(400);
+        expect(badAdminIdRes.body.message).toContain("Invalid adminId parameter");
+    });
+
     test("TC-ADMIN-01 (12): Existing event and registration functionality continues to work", async () => {
         // Organizer views events via admin review
         const adminEvents = await request(app)
