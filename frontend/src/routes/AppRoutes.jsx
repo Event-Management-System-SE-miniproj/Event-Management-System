@@ -67,7 +67,14 @@ export default function AppRoutes() {
       </ProtectedRoute>
     );
   }
-
+  // Admin Dashboard (Admin only)
+  if (currentPath === '/admin') {
+    return (
+      <ProtectedRoute allowedRoles={['ADMIN']}>
+        <AdminDashboard />
+      </ProtectedRoute>
+    );
+  }
   // 404 Not Found fallback
   return (
     <div className="glass-panel not-found-card">

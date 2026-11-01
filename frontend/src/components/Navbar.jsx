@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useRouter, Link } from '../context/RouterContext';
@@ -19,12 +20,15 @@ export default function Navbar() {
 
   const closeMenu = () => setMobileMenuOpen(false);
 
-  // Check if current user is an organizer / admin
-  const isOrganizer = user && (user.role === 'ORGANIZER' || user.role === 'ADMIN');
+  const isOrganizer =
+    user && (user.role === 'ORGANIZER' || user.role === 'ADMIN');
+
+  const isAdmin = user?.role === 'ADMIN';
 
   return (
     <header className="navbar-wrapper glass-panel">
       <div className="navbar-container">
+
         {/* Brand Logo */}
         <Link to="/" className="navbar-brand" onClick={closeMenu}>
           <div className="brand-logo-icon">EMS</div>
@@ -47,16 +51,35 @@ export default function Navbar() {
 
         {/* Navigation Links */}
         <nav className={`navbar-links ${mobileMenuOpen ? 'open' : ''}`}>
+
           <div className="nav-main-links">
             <Link to="/" className="nav-link" onClick={closeMenu}>
               Home
             </Link>
+
             <Link to="/events" className="nav-link" onClick={closeMenu}>
               Events
             </Link>
+
+            {/* Organizer / Admin Create Event */}
             {isAuthenticated && isOrganizer && (
-              <Link to="/events/create" className="nav-link nav-link-create" onClick={closeMenu}>
+              <Link
+                to="/events/create"
+                className="nav-link nav-link-create"
+                onClick={closeMenu}
+              >
                 + Create Event
+              </Link>
+            )}
+
+            {/* Admin Dashboard */}
+            {isAuthenticated && isAdmin && (
+              <Link
+                to="/admin"
+                className="nav-link"
+                onClick={closeMenu}
+              >
+                Admin Dashboard
               </Link>
             )}
           </div>
@@ -64,30 +87,55 @@ export default function Navbar() {
           <div className="nav-auth-links">
             {isAuthenticated ? (
               <div className="user-profile-menu">
-                <Link to="/profile" className="user-badge-link" onClick={closeMenu}>
+                <Link
+                  to="/profile"
+                  className="user-badge-link"
+                  onClick={closeMenu}
+                >
                   <div className="avatar-circle">
-                    {user?.name ? user.name.charAt(0).toUpperCase() : 'U'}
+                    {user?.name
+                      ? user.name.charAt(0).toUpperCase()
+                      : 'U'}
                   </div>
+
                   <div className="user-details">
-                    <span className="user-name">{user?.name || user?.email}</span>
-                    <span className="badge badge-primary user-role-badge">{user?.role || 'USER'}</span>
+                    <span className="user-name">
+                      {user?.name || user?.email}
+                    </span>
+                    <span className="badge badge-primary user-role-badge">
+                      {user?.role || 'USER'}
+                    </span>
                   </div>
                 </Link>
-                <button className="btn btn-outline btn-sm logout-btn" onClick={handleLogout}>
+
+                <button
+                  className="btn btn-outline btn-sm logout-btn"
+                  onClick={handleLogout}
+                >
                   Logout
                 </button>
               </div>
             ) : (
               <div className="guest-actions">
-                <Link to="/login" className="btn btn-outline btn-sm" onClick={closeMenu}>
+                <Link
+                  to="/login"
+                  className="btn btn-outline btn-sm"
+                  onClick={closeMenu}
+                >
                   Login
                 </Link>
-                <Link to="/register" className="btn btn-primary btn-sm" onClick={closeMenu}>
+
+                <Link
+                  to="/register"
+                  className="btn btn-primary btn-sm"
+                  onClick={closeMenu}
+                >
                   Register
                 </Link>
               </div>
             )}
           </div>
+
         </nav>
       </div>
     </header>
