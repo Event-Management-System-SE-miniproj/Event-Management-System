@@ -1,4 +1,5 @@
 const pool = require("../config/database");
+const { sendEventNotification, sendNotification } = require("../services/notificationService");
 
 const createEvent = async (req, res) => {
     try {
@@ -140,6 +141,17 @@ const updateEvent = async (req, res) => {
             });
         }
 
+        // F-014: Trigger event update notification to registered participants
+        try {
+            const updatedEvt = result.rows[0];
+            await sendEventNotification(id, "EVENT_UPDATE", {
+                title: `Event Updated: ${updatedEvt.title}`,
+                message: `The details for "${updatedEvt.title}" have been updated. Venue: ${updatedEvt.venue}, Date: ${new Date(updatedEvt.event_date).toISOString().split("T")[0]}, Time: ${updatedEvt.event_time}.`
+            });
+        } catch (notifErr) {
+            console.error("Event update notification error:", notifErr.message);
+        }
+
         return res.status(200).json({
             message: "Event updated successfully",
             event: result.rows[0]
@@ -166,6 +178,23 @@ const deleteEvent = async (req, res) => {
             });
         }
 
+        // F-014: Fetch registered participants before deletion to notify them of cancellation
+        let registeredParticipants = [];
+        try {
+            const partRes = await pool.query(
+                `SELECT DISTINCT r.user_id, u.email, u.name, e.title, e.event_date
+                 FROM registrations r
+                 JOIN events e ON e.id = r.event_id
+                 LEFT JOIN users u ON u.id = r.user_id
+                 WHERE r.event_id = $1 AND e.organizer_id = $2
+                   AND r.status IN ('REGISTERED', 'PENDING_PAYMENT')`,
+                [id, organizer_id]
+            );
+            registeredParticipants = partRes.rows;
+        } catch (fetchErr) {
+            console.error("Failed to query participants before deletion:", fetchErr.message);
+        }
+
         const result = await pool.query(
             `DELETE FROM events
              WHERE id = $1
@@ -178,6 +207,22 @@ const deleteEvent = async (req, res) => {
             return res.status(404).json({
                 message: "Event not found or organizer is not authorized"
             });
+        }
+
+        // F-014: Notify affected registered participants
+        for (const p of registeredParticipants) {
+            try {
+                await sendNotification({
+                    userId: p.user_id,
+                    recipientEmail: p.email || `user${p.user_id}@example.com`,
+                    eventId: Number(id),
+                    type: "EVENT_CANCELLED",
+                    title: `Notice: Event "${p.title}" Cancelled`,
+                    message: `We regret to inform you that "${p.title}" scheduled for ${new Date(p.event_date).toISOString().split("T")[0]} has been cancelled.`
+                });
+            } catch (notifErr) {
+                console.error("Failed to send cancellation notification:", notifErr.message);
+            }
         }
 
         return res.status(200).json({

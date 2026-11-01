@@ -1,5 +1,6 @@
 
 const pool = require("../config/database");
+const { sendRegistrationConfirmation } = require("../services/notificationService");
 
 // F-008/F-009: Register for Event + Enforce Capacity
 const registerForEvent = async (req, res) => {
@@ -82,6 +83,17 @@ const registerForEvent = async (req, res) => {
         );
 
         await client.query("COMMIT");
+
+        // F-014: Registration confirmation notification
+        try {
+            await sendRegistrationConfirmation(
+                result.rows[0].id,
+                event_id,
+                user_id
+            );
+        } catch (notifErr) {
+            console.error("Registration confirmation notification error:", notifErr.message);
+        }
 
         return res.status(201).json({
             message: "Registration successful",

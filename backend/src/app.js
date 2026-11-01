@@ -6,6 +6,11 @@ const profileRoutes = require("./routes/profileRoutes");
 const registrationRoutes = require("./routes/registrationRoutes");
 const paymentRoutes = require("./routes/paymentRoutes");
 const ticketRoutes = require("./routes/ticketRoutes");
+const notificationRoutes = require("./routes/notificationRoutes");
+const initDb = require("./config/initDb");
+
+// Ensure required tables exist
+initDb();
 
 const app = express();
 
@@ -28,6 +33,9 @@ app.use("/api/payments", paymentRoutes);
 
 // F-011: Registration Confirmation and Ticket Generation
 app.use("/api/tickets", ticketRoutes);
+
+// F-014: Registration Confirmation and Event Notifications
+app.use("/api/notifications", notificationRoutes);
 
 app.get("/", (req, res) => {
     res.json({
