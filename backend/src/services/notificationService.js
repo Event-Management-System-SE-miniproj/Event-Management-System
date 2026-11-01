@@ -89,6 +89,23 @@ const sendNotification = async ({
     title,
     message
 }) => {
+    // Input validation
+    if (!userId || typeof userId !== "number" || userId <= 0) {
+        throw new Error("Invalid or missing userId for notification");
+    }
+    if (!recipientEmail || typeof recipientEmail !== "string" || !recipientEmail.includes("@")) {
+        throw new Error("Invalid or missing recipientEmail for notification");
+    }
+    if (!type || typeof type !== "string" || type.trim().length === 0) {
+        throw new Error("Invalid or missing notification type");
+    }
+    if (!title || typeof title !== "string" || title.trim().length === 0) {
+        throw new Error("Invalid or missing notification title");
+    }
+    if (!message || typeof message !== "string" || message.trim().length === 0) {
+        throw new Error("Invalid or missing notification message");
+    }
+
     // Deduplication check: Avoid sending duplicate registration confirmation notifications
     if (registrationId && type === "REGISTRATION_CONFIRMATION") {
         const existing = await pool.query(
@@ -271,17 +288,51 @@ const sendEventNotification = async (eventId, actionType, { title, message }) =>
 };
 
 /**
- * Retrieve notifications for a specific user
+ * Retrieve notifications for a specific user with optional filters
  */
-const getUserNotifications = async (userId) => {
-    const result = await pool.query(
-        `SELECT id, user_id, recipient_email, event_id, registration_id,
-                type, title, message, status, is_read, read_at, sent_at, created_at
-         FROM notifications
-         WHERE user_id = $1
-         ORDER BY created_at DESC`,
-        [userId]
-    );
+const getUserNotifications = async (userId, filters = {}) => {
+    let query = `
+        SELECT id, user_id, recipient_email, event_id, registration_id,
+               type, title, message, status, is_read, read_at, sent_at, created_at
+        FROM notifications
+        WHERE user_id = $1
+    `;
+    const params = [userId];
+    let paramIndex = 2;
+
+    if (filters.status) {
+        query += ` AND status = $${paramIndex}`;
+        params.push(filters.status.toUpperCase());
+        paramIndex++;
+    }
+
+    if (typeof filters.isRead === "boolean") {
+        query += ` AND is_read = $${paramIndex}`;
+        params.push(filters.isRead);
+        paramIndex++;
+    }
+
+    if (filters.type) {
+        query += ` AND type = $${paramIndex}`;
+        params.push(filters.type);
+        paramIndex++;
+    }
+
+    query += ` ORDER BY created_at DESC`;
+
+    if (filters.limit) {
+        query += ` LIMIT $${paramIndex}`;
+        params.push(filters.limit);
+        paramIndex++;
+    }
+
+    if (filters.offset) {
+        query += ` OFFSET $${paramIndex}`;
+        params.push(filters.offset);
+        paramIndex++;
+    }
+
+    const result = await pool.query(query, params);
     return result.rows;
 };
 

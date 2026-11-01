@@ -405,6 +405,74 @@ describe("EMS-F-014: Event Notifications & Registration Confirmation", () => {
         expect(unregCancel.rows.length).toBe(0);
     });
 
+    // -------------------------------------------------------------------------
+    // Input Validation: Notification Parameters & Query Filters
+    // -------------------------------------------------------------------------
+    test("TC-NOTIF-VAL-01: Rejects invalid notification ID formats", async () => {
+        // Non-numeric ID
+        const resNonNumeric = await request(app)
+            .get("/api/notifications/invalid-id")
+            .set("Authorization", `Bearer ${user1Token}`);
+        expect(resNonNumeric.statusCode).toBe(400);
+        expect(resNonNumeric.body.message).toBe("Invalid notification ID");
+
+        // Negative ID
+        const resNegative = await request(app)
+            .get("/api/notifications/-5")
+            .set("Authorization", `Bearer ${user1Token}`);
+        expect(resNegative.statusCode).toBe(400);
+        expect(resNegative.body.message).toBe("Invalid notification ID");
+
+        // Decimal ID on mark read
+        const resDecimal = await request(app)
+            .patch("/api/notifications/2.5/read")
+            .set("Authorization", `Bearer ${user1Token}`);
+        expect(resDecimal.statusCode).toBe(400);
+        expect(resDecimal.body.message).toBe("Invalid notification ID");
+    });
+
+    test("TC-NOTIF-VAL-02: Rejects invalid query filter parameters", async () => {
+        // Invalid status filter
+        const resInvalidStatus = await request(app)
+            .get("/api/notifications?status=NON_EXISTENT")
+            .set("Authorization", `Bearer ${user1Token}`);
+        expect(resInvalidStatus.statusCode).toBe(400);
+        expect(resInvalidStatus.body.message).toContain("Invalid status filter");
+
+        // Invalid is_read filter
+        const resInvalidRead = await request(app)
+            .get("/api/notifications?is_read=maybe")
+            .set("Authorization", `Bearer ${user1Token}`);
+        expect(resInvalidRead.statusCode).toBe(400);
+        expect(resInvalidRead.body.message).toContain("Invalid is_read filter");
+
+        // Invalid pagination parameters
+        const resInvalidLimit = await request(app)
+            .get("/api/notifications?limit=-10")
+            .set("Authorization", `Bearer ${user1Token}`);
+        expect(resInvalidLimit.statusCode).toBe(400);
+        expect(resInvalidLimit.body.message).toContain("Invalid pagination parameters");
+
+        const resInvalidOffset = await request(app)
+            .get("/api/notifications?offset=abc")
+            .set("Authorization", `Bearer ${user1Token}`);
+        expect(resInvalidOffset.statusCode).toBe(400);
+        expect(resInvalidOffset.body.message).toContain("Invalid pagination parameters");
+    });
+
+    test("TC-NOTIF-VAL-03: Successfully filters notifications by valid parameters", async () => {
+        const resFiltered = await request(app)
+            .get("/api/notifications?status=SENT&is_read=false&limit=10")
+            .set("Authorization", `Bearer ${user1Token}`);
+        expect(resFiltered.statusCode).toBe(200);
+        expect(resFiltered.body.message).toBe("Notifications retrieved successfully");
+        expect(Array.isArray(resFiltered.body.notifications)).toBe(true);
+        for (const notif of resFiltered.body.notifications) {
+            expect(notif.status).toBe("SENT");
+            expect(notif.is_read).toBe(false);
+        }
+    });
+
     afterAll(async () => {
         await pool.query("DELETE FROM notifications WHERE recipient_email IN ($1, $2, $3, $4)", [
             orgEmail,
