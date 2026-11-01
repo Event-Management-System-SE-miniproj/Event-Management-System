@@ -10,41 +10,80 @@ const { logAdminAction, getAuditLogs, getAuditLogById } = require("../services/a
  */
 const getAllUsers = async (req, res) => {
     try {
-        const { search, role, status } = req.query;
+        const { search, role, status, page: pageParam, limit: limitParam } = req.query;
 
-        let query = `
-            SELECT id, name, email, role, status, created_at, updated_at
-            FROM users
-            WHERE 1=1
-        `;
+        // Validate page and limit if provided
+        if (pageParam !== undefined) {
+            const parsedPage = Number(pageParam);
+            if (!Number.isInteger(parsedPage) || parsedPage <= 0) {
+                return res.status(400).json({
+                    message: "Invalid page parameter: must be a positive integer"
+                });
+            }
+        }
+
+        if (limitParam !== undefined) {
+            const parsedLimit = Number(limitParam);
+            if (!Number.isInteger(parsedLimit) || parsedLimit <= 0 || parsedLimit > 100) {
+                return res.status(400).json({
+                    message: "Invalid limit parameter: must be an integer between 1 and 100"
+                });
+            }
+        }
+
+        const page = pageParam ? parseInt(pageParam, 10) : 1;
+        const limit = limitParam ? Math.min(100, Math.max(1, parseInt(limitParam, 10))) : 20;
+        const offset = (page - 1) * limit;
+
+        let whereClause = " WHERE 1=1";
         const values = [];
         let paramIndex = 1;
 
         if (search) {
-            query += ` AND (name ILIKE $${paramIndex} OR email ILIKE $${paramIndex})`;
+            whereClause += ` AND (name ILIKE $${paramIndex} OR email ILIKE $${paramIndex})`;
             values.push(`%${search}%`);
             paramIndex++;
         }
 
         if (role) {
-            query += ` AND role = $${paramIndex}`;
+            whereClause += ` AND role = $${paramIndex}`;
             values.push(role.toUpperCase());
             paramIndex++;
         }
 
         if (status) {
-            query += ` AND status = $${paramIndex}`;
+            whereClause += ` AND status = $${paramIndex}`;
             values.push(status.toUpperCase());
             paramIndex++;
         }
 
-        query += ` ORDER BY created_at DESC`;
+        // Count total matching users
+        const countResult = await pool.query(
+            `SELECT COUNT(*)::INTEGER AS total FROM users${whereClause}`,
+            values
+        );
+        const total = countResult.rows[0].total;
 
-        const result = await pool.query(query, values);
+        // Query paginated users
+        const queryValues = [...values, limit, offset];
+        const query = `
+            SELECT id, name, email, role, status, created_at, updated_at
+            FROM users
+            ${whereClause}
+            ORDER BY created_at DESC
+            LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
+        `;
+
+        const result = await pool.query(query, queryValues);
+        const totalPages = Math.ceil(total / limit) || 1;
 
         return res.status(200).json({
             message: "Users retrieved successfully",
             count: result.rows.length,
+            total,
+            page,
+            limit,
+            totalPages,
             users: result.rows
         });
 

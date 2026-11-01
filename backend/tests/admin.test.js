@@ -197,6 +197,54 @@ describe("EMS-F-015: Administrative Management & Audit Logging", () => {
     });
 
     // -------------------------------------------------------------------------
+    // Admin User Pagination Tests
+    // -------------------------------------------------------------------------
+    test("TC-ADMIN-PAG-01: Admin user listing supports pagination parameters and returns pagination metadata", async () => {
+        // Default pagination
+        const defaultRes = await request(app)
+            .get("/api/admin/users")
+            .set("Authorization", `Bearer ${adminToken}`);
+
+        expect(defaultRes.statusCode).toBe(200);
+        expect(defaultRes.body.page).toBe(1);
+        expect(defaultRes.body.limit).toBe(20);
+        expect(defaultRes.body.total).toBeGreaterThanOrEqual(4);
+        expect(defaultRes.body.totalPages).toBeGreaterThanOrEqual(1);
+
+        // Custom page and limit
+        const paginatedRes = await request(app)
+            .get("/api/admin/users?page=1&limit=2")
+            .set("Authorization", `Bearer ${adminToken}`);
+
+        expect(paginatedRes.statusCode).toBe(200);
+        expect(paginatedRes.body.page).toBe(1);
+        expect(paginatedRes.body.limit).toBe(2);
+        expect(paginatedRes.body.users.length).toBeLessThanOrEqual(2);
+
+        // Page 2
+        const page2Res = await request(app)
+            .get("/api/admin/users?page=2&limit=2")
+            .set("Authorization", `Bearer ${adminToken}`);
+
+        expect(page2Res.statusCode).toBe(200);
+        expect(page2Res.body.page).toBe(2);
+        expect(page2Res.body.limit).toBe(2);
+
+        // Reject invalid page / limit
+        const invalidPageRes = await request(app)
+            .get("/api/admin/users?page=invalid")
+            .set("Authorization", `Bearer ${adminToken}`);
+        expect(invalidPageRes.statusCode).toBe(400);
+        expect(invalidPageRes.body.message).toContain("Invalid page parameter");
+
+        const invalidLimitRes = await request(app)
+            .get("/api/admin/users?limit=-5")
+            .set("Authorization", `Bearer ${adminToken}`);
+        expect(invalidLimitRes.statusCode).toBe(400);
+        expect(invalidLimitRes.body.message).toContain("Invalid limit parameter");
+    });
+
+    // -------------------------------------------------------------------------
     // TC-ADMIN-01 Verification 6: Disabling and Re-enabling Users
     // -------------------------------------------------------------------------
 
