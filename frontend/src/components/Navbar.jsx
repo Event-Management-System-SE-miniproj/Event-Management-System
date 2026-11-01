@@ -20,10 +20,14 @@ export default function Navbar() {
 
   const closeMenu = () => setMobileMenuOpen(false);
 
-  const isOrganizer =
-    user && (user.role === 'ORGANIZER' || user.role === 'ADMIN');
+  // Normalize role to uppercase for consistent role checking
+  const userRole = user?.role?.toUpperCase();
 
-  const isAdmin = user?.role === 'ADMIN';
+  // Organizer and Admin permissions
+  const isOrganizer =
+    userRole === 'ORGANIZER' || userRole === 'ADMIN';
+
+  const isAdmin = userRole === 'ADMIN';
 
   return (
     <header className="navbar-wrapper glass-panel">
@@ -72,6 +76,17 @@ export default function Navbar() {
               </Link>
             )}
 
+            {/* Organizer Dashboard */}
+            {isAuthenticated && userRole === 'ORGANIZER' && (
+              <Link
+                to="/organizer"
+                className="nav-link"
+                onClick={closeMenu}
+              >
+                Organizer Dashboard
+              </Link>
+            )}
+
             {/* Admin Dashboard */}
             {isAuthenticated && isAdmin && (
               <Link
@@ -102,8 +117,9 @@ export default function Navbar() {
                     <span className="user-name">
                       {user?.name || user?.email}
                     </span>
+
                     <span className="badge badge-primary user-role-badge">
-                      {user?.role || 'USER'}
+                      {userRole || 'USER'}
                     </span>
                   </div>
                 </Link>
