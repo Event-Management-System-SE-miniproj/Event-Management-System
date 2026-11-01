@@ -163,6 +163,87 @@ describe("EMS-F-015: Administrative Management & Audit Logging", () => {
     });
 
     // -------------------------------------------------------------------------
+    // Comprehensive Admin Authorization & Role-Based Access Control Tests
+    // -------------------------------------------------------------------------
+    test("TC-ADMIN-AUTH-01: Admin events review endpoint enforces strict role-based authorization", async () => {
+        // 1. Unauthenticated request rejected with 401
+        const unauthRes = await request(app).get("/api/admin/events");
+        expect(unauthRes.statusCode).toBe(401);
+        expect(unauthRes.body.message).toContain("token is required");
+
+        // 2. Regular user rejected with 403
+        const userRes = await request(app)
+            .get("/api/admin/events")
+            .set("Authorization", `Bearer ${userToken}`);
+        expect(userRes.statusCode).toBe(403);
+        expect(userRes.body.message).toBe("Administrator access required");
+
+        // 3. Organizer rejected with 403
+        const orgRes = await request(app)
+            .get("/api/admin/events")
+            .set("Authorization", `Bearer ${organizerToken}`);
+        expect(orgRes.statusCode).toBe(403);
+        expect(orgRes.body.message).toBe("Administrator access required");
+
+        // 4. Authorized administrator succeeds with 200
+        const adminRes = await request(app)
+            .get("/api/admin/events")
+            .set("Authorization", `Bearer ${adminToken}`);
+        expect(adminRes.statusCode).toBe(200);
+        expect(Array.isArray(adminRes.body.events)).toBe(true);
+    });
+
+    test("TC-ADMIN-AUTH-02: Event approval and moderation action enforces role-based authorization", async () => {
+        // 1. Unauthenticated request rejected with 401
+        const unauthRes = await request(app).patch(`/api/admin/events/${pendingEventId}/approve`);
+        expect(unauthRes.statusCode).toBe(401);
+
+        // 2. Regular user rejected with 403
+        const userRes = await request(app)
+            .patch(`/api/admin/events/${pendingEventId}/approve`)
+            .set("Authorization", `Bearer ${userToken}`);
+        expect(userRes.statusCode).toBe(403);
+        expect(userRes.body.message).toBe("Administrator access required");
+
+        // 3. Organizer rejected with 403 (even for events they created)
+        const orgRes = await request(app)
+            .patch(`/api/admin/events/${pendingEventId}/approve`)
+            .set("Authorization", `Bearer ${organizerToken}`);
+        expect(orgRes.statusCode).toBe(403);
+        expect(orgRes.body.message).toBe("Administrator access required");
+    });
+
+    test("TC-ADMIN-AUTH-03: User status management enforces role-based authorization", async () => {
+        // 1. Unauthenticated request rejected with 401
+        const unauthRes = await request(app).patch(`/api/admin/users/${targetUserId}/status`).send({ status: "DISABLED" });
+        expect(unauthRes.statusCode).toBe(401);
+
+        // 2. Regular user rejected with 403
+        const userRes = await request(app)
+            .patch(`/api/admin/users/${targetUserId}/status`)
+            .set("Authorization", `Bearer ${userToken}`)
+            .send({ status: "DISABLED" });
+        expect(userRes.statusCode).toBe(403);
+        expect(userRes.body.message).toBe("Administrator access required");
+
+        // 3. Organizer rejected with 403
+        const orgRes = await request(app)
+            .patch(`/api/admin/users/${targetUserId}/status`)
+            .set("Authorization", `Bearer ${organizerToken}`)
+            .send({ status: "DISABLED" });
+        expect(orgRes.statusCode).toBe(403);
+        expect(orgRes.body.message).toBe("Administrator access required");
+    });
+
+    test("TC-ADMIN-AUTH-04: Rejects malformed and expired tokens on administrative endpoints", async () => {
+        const malformedRes = await request(app)
+            .get("/api/admin/users")
+            .set("Authorization", "Bearer invalid.token.value");
+        expect(malformedRes.statusCode).toBe(401);
+        expect(malformedRes.body.message).toContain("Invalid or expired");
+    });
+
+    // -------------------------------------------------------------------------
     // TC-ADMIN-01 Verification 5: User Management & Password Hash Protection
     // -------------------------------------------------------------------------
 
