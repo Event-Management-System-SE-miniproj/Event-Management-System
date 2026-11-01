@@ -23,15 +23,16 @@ const registerUser = async (req, res) => {
         }
 
         // Validate and normalize role
-        const role = String(req.body.role || "USER")
-            .trim()
-            .toUpperCase();
+        // Validate and normalize role
+    const role = String(req.body.role || "user")
+        .trim()
+        .toLowerCase();
 
-        if (!["USER", "ORGANIZER"].includes(role)) {
-            return res.status(400).json({
-                message: "Invalid role selected"
-            });
-        }
+    if (!["user", "organizer"].includes(role)) {
+        return res.status(400).json({
+            message: "Invalid role selected"
+        });
+    }
 
         // Normalize email
         const normalizedEmail = email.trim().toLowerCase();
