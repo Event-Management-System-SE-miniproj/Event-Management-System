@@ -7,6 +7,7 @@ const registrationRoutes = require("./routes/registrationRoutes");
 const paymentRoutes = require("./routes/paymentRoutes");
 const ticketRoutes = require("./routes/ticketRoutes");
 const notificationRoutes = require("./routes/notificationRoutes");
+const adminRoutes = require("./routes/adminRoutes");
 const initDb = require("./config/initDb");
 
 // Ensure required tables exist
@@ -36,6 +37,9 @@ app.use("/api/tickets", ticketRoutes);
 
 // F-014: Registration Confirmation and Event Notifications
 app.use("/api/notifications", notificationRoutes);
+
+// F-015: Administrator User, Event, and Audit Management
+app.use("/api/admin", adminRoutes);
 
 app.get("/", (req, res) => {
     res.json({

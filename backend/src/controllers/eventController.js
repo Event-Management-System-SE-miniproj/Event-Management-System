@@ -253,6 +253,7 @@ const getEvents = async (req, res) => {
             SELECT *
             FROM events
             WHERE event_date >= CURRENT_DATE
+              AND status = 'ACTIVE'
         `;
 
         const values = [];

@@ -97,7 +97,7 @@ const loginUser = async (req, res) => {
 
         // Find user
         const result = await pool.query(
-            `SELECT id, name, email, password_hash, role
+            `SELECT id, name, email, password_hash, role, status
              FROM users
              WHERE email = $1`,
             [normalizedEmail]
@@ -127,6 +127,13 @@ const loginUser = async (req, res) => {
         if (!passwordMatch) {
             return res.status(401).json({
                 message: "Invalid email or password"
+            });
+        }
+
+        // F-015: Reject login if account is disabled
+        if (user.status === "DISABLED") {
+            return res.status(403).json({
+                message: "Account is disabled. Please contact administrator."
             });
         }
 

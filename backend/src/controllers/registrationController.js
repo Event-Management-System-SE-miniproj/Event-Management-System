@@ -18,7 +18,7 @@ const registerForEvent = async (req, res) => {
         await client.query("BEGIN");
 
         const eventResult = await client.query(
-            `SELECT id, capacity, registration_open
+            `SELECT id, capacity, registration_open, status
              FROM events
              WHERE id = $1
              FOR UPDATE`,
@@ -38,6 +38,23 @@ const registerForEvent = async (req, res) => {
             await client.query("ROLLBACK");
             return res.status(400).json({
                 message: "Registration is closed for this event"
+            });
+        }
+
+        // F-015: Reject registration if event is disabled
+        if (event.status === "DISABLED") {
+            await client.query("ROLLBACK");
+            return res.status(400).json({
+                message: "Cannot register for a disabled event"
+            });
+        }
+
+        // F-015: Reject registration if user account is disabled
+        const userStatusCheck = await client.query("SELECT status FROM users WHERE id = $1", [user_id]);
+        if (userStatusCheck.rows.length > 0 && userStatusCheck.rows[0].status === "DISABLED") {
+            await client.query("ROLLBACK");
+            return res.status(403).json({
+                message: "Disabled user account cannot register for events"
             });
         }
 
