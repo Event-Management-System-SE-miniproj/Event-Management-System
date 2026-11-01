@@ -1,4 +1,5 @@
-import { api } from './api';
+
+import { api, apiRequest } from './api';
 
 /**
  * Event Service
@@ -7,7 +8,6 @@ import { api } from './api';
 export const eventService = {
   /**
    * F-006: Search and Filter Events
-   * Supported query params: search, venue, event_date, registration_open
    */
   async getEvents(filters = {}) {
     const params = new URLSearchParams();
@@ -21,12 +21,16 @@ export const eventService = {
     if (filters.event_date && filters.event_date.trim()) {
       params.append('event_date', filters.event_date.trim());
     }
-    if (filters.registration_open !== undefined && filters.registration_open !== '') {
+    if (
+      filters.registration_open !== undefined &&
+      filters.registration_open !== ''
+    ) {
       params.append('registration_open', filters.registration_open);
     }
 
     const queryString = params.toString();
     const endpoint = `/api/events${queryString ? `?${queryString}` : ''}`;
+
     return await api.get(endpoint);
   },
 
@@ -55,7 +59,9 @@ export const eventService = {
    * F-005: Delete Event
    */
   async deleteEvent(id, organizerId) {
-    return await api.delete(`/api/events/${id}`, { organizer_id: organizerId });
+    return await api.delete(`/api/events/${id}`, {
+      organizer_id: organizerId,
+    });
   },
 
   /**
@@ -66,5 +72,39 @@ export const eventService = {
       event_id: eventId,
       user_id: userId,
     });
+  },
+
+  /**
+   * F-012: Get registrations of the logged-in user
+   */
+  async getMyRegistrations() {
+    return await api.get('/api/registrations/my', {
+      requiresAuth: true,
+    });
+  },
+
+  /**
+   * F-012: Cancel an existing registration
+   */
+  async cancelRegistration(registrationId) {
+    return await apiRequest(
+      `/api/registrations/${registrationId}/cancel`,
+      {
+        method: 'PATCH',
+        requiresAuth: true,
+      }
+    );
+  },
+
+  /**
+   * F-013: Get participants for an organizer's event
+   */
+  async getEventParticipants(eventId) {
+    return await api.get(
+      `/api/registrations/event/${eventId}/participants`,
+      {
+        requiresAuth: true,
+      }
+    );
   },
 };
