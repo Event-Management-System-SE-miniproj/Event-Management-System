@@ -123,6 +123,20 @@ jobs:
           );
           "
 
+      - name: Create payments table
+        run: |
+          psql -h localhost -U postgres -d event_management -c "
+          CREATE TABLE IF NOT EXISTS payments (
+              id SERIAL PRIMARY KEY,
+              registration_id INTEGER NOT NULL REFERENCES registrations(id) ON DELETE CASCADE,
+              amount NUMERIC(10, 2) NOT NULL DEFAULT 0.00,
+              payment_method VARCHAR(50) NOT NULL DEFAULT 'MOCK',
+              transaction_id VARCHAR(100),
+              status VARCHAR(20) NOT NULL DEFAULT 'SUCCESS',
+              created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+          );
+          "
+
       - name: Create notifications table
         run: |
           psql -h localhost -U postgres -d event_management -c "

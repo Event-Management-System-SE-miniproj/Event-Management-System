@@ -1,4 +1,3 @@
-
 const pool = require("./database");
 
 let initPromise = null;
@@ -38,20 +37,33 @@ const initDb = () => {
                     UPDATE users SET status = 'ACTIVE' WHERE status IS NULL;
                 `);
 
-                // NEW: Allow all supported application roles
+                // Allow all supported application roles (case-insensitive to support both 'user'/'organizer'/'admin' and 'USER'/'ORGANIZER'/'ADMIN')
                 await client.query(`
                     ALTER TABLE users
                     DROP CONSTRAINT IF EXISTS users_role_check;
 
                     ALTER TABLE users
                     ADD CONSTRAINT users_role_check
-                    CHECK (role IN ('user', 'organizer', 'admin'));
+                    CHECK (LOWER(role) IN ('user', 'organizer', 'admin'));
                 `);
 
                 // Events status column check (F-015)
                 await client.query(`
                     ALTER TABLE events ADD COLUMN IF NOT EXISTS status VARCHAR(30) DEFAULT 'ACTIVE';
                     UPDATE events SET status = 'ACTIVE' WHERE status IS NULL;
+                `);
+
+                // Payments table (F-010)
+                await client.query(`
+                    CREATE TABLE IF NOT EXISTS payments (
+                        id SERIAL PRIMARY KEY,
+                        registration_id INTEGER NOT NULL,
+                        amount NUMERIC(10, 2) NOT NULL DEFAULT 0.00,
+                        payment_method VARCHAR(50) NOT NULL DEFAULT 'MOCK',
+                        transaction_id VARCHAR(100),
+                        status VARCHAR(20) NOT NULL DEFAULT 'SUCCESS',
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    );
                 `);
 
                 // Audit logs table (F-015)
