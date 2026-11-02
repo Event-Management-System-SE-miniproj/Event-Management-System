@@ -1,3 +1,4 @@
+
 const pool = require("./database");
 
 let initPromise = null;
@@ -35,6 +36,16 @@ const initDb = () => {
                 await client.query(`
                     ALTER TABLE users ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'ACTIVE';
                     UPDATE users SET status = 'ACTIVE' WHERE status IS NULL;
+                `);
+
+                // NEW: Allow all supported application roles
+                await client.query(`
+                    ALTER TABLE users
+                    DROP CONSTRAINT IF EXISTS users_role_check;
+
+                    ALTER TABLE users
+                    ADD CONSTRAINT users_role_check
+                    CHECK (role IN ('user', 'organizer', 'admin'));
                 `);
 
                 // Events status column check (F-015)

@@ -1,10 +1,30 @@
-const pool = require("../config/database");
-const { sendEventNotification, sendNotification } = require("../services/notificationService");
 
+const pool = require("../config/database");
+const {
+    sendEventNotification,
+    sendNotification
+} = require("../services/notificationService");
+
+// Check whether the logged-in user can manage events
+const hasEventManagementAccess = (req) => {
+    const role = String(req.user?.role || "").toUpperCase();
+    return role === "ORGANIZER" || role === "ADMIN";
+};
+
+// F-005: Create Event
 const createEvent = async (req, res) => {
     try {
+        if (!hasEventManagementAccess(req)) {
+            return res.status(403).json({
+                message: "Organizer access required"
+            });
+        }
+
+        // Always use the authenticated user's ID.
+        // Never trust organizer_id supplied by the frontend.
+        const organizer_id = req.user.id;
+
         const {
-            organizer_id,
             title,
             description,
             event_date,
@@ -15,7 +35,6 @@ const createEvent = async (req, res) => {
         } = req.body;
 
         if (
-            !organizer_id ||
             !title ||
             !event_date ||
             !event_time ||
@@ -27,9 +46,9 @@ const createEvent = async (req, res) => {
             });
         }
 
-        if (capacity <= 0) {
+        if (!Number.isInteger(Number(capacity)) || Number(capacity) <= 0) {
             return res.status(400).json({
-                message: "Capacity must be greater than 0"
+                message: "Capacity must be a positive integer"
             });
         }
 
@@ -68,12 +87,19 @@ const createEvent = async (req, res) => {
 };
 
 
+// F-005: Update Event
 const updateEvent = async (req, res) => {
     try {
+        if (!hasEventManagementAccess(req)) {
+            return res.status(403).json({
+                message: "Organizer access required"
+            });
+        }
+
         const { id } = req.params;
+        const organizer_id = req.user.id;
 
         const {
-            organizer_id,
             title,
             description,
             event_date,
@@ -82,12 +108,6 @@ const updateEvent = async (req, res) => {
             capacity,
             registration_open
         } = req.body;
-
-        if (!organizer_id) {
-            return res.status(400).json({
-                message: "Organizer ID is required"
-            });
-        }
 
         if (
             !title ||
@@ -101,9 +121,9 @@ const updateEvent = async (req, res) => {
             });
         }
 
-        if (capacity <= 0) {
+        if (!Number.isInteger(Number(capacity)) || Number(capacity) <= 0) {
             return res.status(400).json({
-                message: "Capacity must be greater than 0"
+                message: "Capacity must be a positive integer"
             });
         }
 
@@ -141,15 +161,20 @@ const updateEvent = async (req, res) => {
             });
         }
 
-        // F-014: Trigger event update notification to registered participants
+        // F-014: Notify registered participants about event updates
         try {
             const updatedEvt = result.rows[0];
+
             await sendEventNotification(id, "EVENT_UPDATE", {
                 title: `Event Updated: ${updatedEvt.title}`,
                 message: `The details for "${updatedEvt.title}" have been updated. Venue: ${updatedEvt.venue}, Date: ${new Date(updatedEvt.event_date).toISOString().split("T")[0]}, Time: ${updatedEvt.event_time}.`
             });
+
         } catch (notifErr) {
-            console.error("Event update notification error:", notifErr.message);
+            console.error(
+                "Event update notification error:",
+                notifErr.message
+            );
         }
 
         return res.status(200).json({
@@ -167,32 +192,45 @@ const updateEvent = async (req, res) => {
 };
 
 
+// F-005: Delete Event
 const deleteEvent = async (req, res) => {
     try {
-        const { id } = req.params;
-        const { organizer_id } = req.body;
-
-        if (!organizer_id) {
-            return res.status(400).json({
-                message: "Organizer ID is required"
+        if (!hasEventManagementAccess(req)) {
+            return res.status(403).json({
+                message: "Organizer access required"
             });
         }
 
-        // F-014: Fetch registered participants before deletion to notify them of cancellation
+        const { id } = req.params;
+        const organizer_id = req.user.id;
+
+        // Fetch registered participants before deleting the event
         let registeredParticipants = [];
+
         try {
             const partRes = await pool.query(
-                `SELECT DISTINCT r.user_id, u.email, u.name, e.title, e.event_date
+                `SELECT DISTINCT
+                    r.user_id,
+                    u.email,
+                    u.name,
+                    e.title,
+                    e.event_date
                  FROM registrations r
                  JOIN events e ON e.id = r.event_id
                  LEFT JOIN users u ON u.id = r.user_id
-                 WHERE r.event_id = $1 AND e.organizer_id = $2
+                 WHERE r.event_id = $1
+                   AND e.organizer_id = $2
                    AND r.status IN ('REGISTERED', 'PENDING_PAYMENT')`,
                 [id, organizer_id]
             );
+
             registeredParticipants = partRes.rows;
+
         } catch (fetchErr) {
-            console.error("Failed to query participants before deletion:", fetchErr.message);
+            console.error(
+                "Failed to query participants before deletion:",
+                fetchErr.message
+            );
         }
 
         const result = await pool.query(
@@ -220,8 +258,12 @@ const deleteEvent = async (req, res) => {
                     title: `Notice: Event "${p.title}" Cancelled`,
                     message: `We regret to inform you that "${p.title}" scheduled for ${new Date(p.event_date).toISOString().split("T")[0]} has been cancelled.`
                 });
+
             } catch (notifErr) {
-                console.error("Failed to send cancellation notification:", notifErr.message);
+                console.error(
+                    "Failed to send cancellation notification:",
+                    notifErr.message
+                );
             }
         }
 
@@ -239,7 +281,8 @@ const deleteEvent = async (req, res) => {
     }
 };
 
-// F-006: Search and Filter Events
+
+// F-006: Search and Filter Public Events
 const getEvents = async (req, res) => {
     try {
         const {
@@ -315,6 +358,48 @@ const getEvents = async (req, res) => {
 };
 
 
+// NEW: Organizer Dashboard - Fetch all events created by logged-in organizer
+const getMyEvents = async (req, res) => {
+    try {
+        if (!hasEventManagementAccess(req)) {
+            return res.status(403).json({
+                message: "Organizer access required"
+            });
+        }
+
+        const organizerId = req.user.id;
+
+        const result = await pool.query(
+            `SELECT
+                e.*,
+                COUNT(r.id) FILTER (
+                    WHERE r.status IN ('REGISTERED', 'PENDING_PAYMENT')
+                )::INTEGER AS participant_count
+             FROM events e
+             LEFT JOIN registrations r
+                ON r.event_id = e.id
+             WHERE e.organizer_id = $1
+             GROUP BY e.id
+             ORDER BY e.event_date DESC, e.event_time DESC`,
+            [organizerId]
+        );
+
+        return res.status(200).json({
+            message: "Organizer events retrieved successfully",
+            count: result.rows.length,
+            events: result.rows
+        });
+
+    } catch (error) {
+        console.error("Get organizer events error:", error.message);
+
+        return res.status(500).json({
+            message: "Failed to fetch organizer events"
+        });
+    }
+};
+
+
 // F-007: View Event Details
 const getEventById = async (req, res) => {
     try {
@@ -346,10 +431,12 @@ const getEventById = async (req, res) => {
     }
 };
 
+
 module.exports = {
     createEvent,
     updateEvent,
     deleteEvent,
     getEvents,
+    getMyEvents,
     getEventById
 };

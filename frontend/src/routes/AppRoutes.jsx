@@ -15,83 +15,34 @@ import OrganizerDashboard from '../pages/OrganizerDashboard';
 export default function AppRoutes() {
   const { currentPath, navigate } = useRouter();
 
-  // Root / Home
-  if (currentPath === '/') {
-    return <Home />;
-  }
+  if (currentPath === '/') return <Home />;
+  if (currentPath === '/login') return <Login />;
+  if (currentPath === '/register') return <Register />;
+  if (currentPath === '/events') return <Events />;
 
-  // Auth routes
-  if (currentPath === '/login') {
-    return <Login />;
-  }
-  if (currentPath === '/register') {
-    return <Register />;
-  }
-
-  // Event browsing
-  if (currentPath === '/events') {
-    return <Events />;
-  }
-
-  // Create event (Protected)
   if (currentPath === '/events/create') {
-    return (
-      <ProtectedRoute>
-        <CreateEvent />
-      </ProtectedRoute>
-    );
+    return <ProtectedRoute allowedRoles={['ORGANIZER', 'ADMIN']}><CreateEvent /></ProtectedRoute>;
   }
 
-  // Edit event (Protected) : /events/:id/edit
   const editMatch = currentPath.match(/^\/events\/([^/]+)\/edit$/);
   if (editMatch) {
-    const id = editMatch[1];
-    return (
-      <ProtectedRoute>
-        <EditEvent id={id} />
-      </ProtectedRoute>
-    );
+    return <ProtectedRoute allowedRoles={['ORGANIZER', 'ADMIN']}><EditEvent id={editMatch[1]} /></ProtectedRoute>;
   }
 
-  // View event details: /events/:id
   const detailsMatch = currentPath.match(/^\/events\/([^/]+)$/);
-  if (detailsMatch) {
-    const id = detailsMatch[1];
-    return <EventDetails id={id} />;
+  if (detailsMatch) return <EventDetails id={detailsMatch[1]} />;
+
+  if (currentPath === '/profile') {
+    return <ProtectedRoute><Profile /></ProtectedRoute>;
   }
 
-  // User profile (Protected)
-  if (currentPath === '/profile') {
-    return (
-      <ProtectedRoute>
-        <Profile />
-      </ProtectedRoute>
-    );
-  }
-  // Admin Dashboard (Admin only)
-  if (currentPath === '/admin') {
-    return (
-      <ProtectedRoute allowedRoles={['ADMIN']}>
-        <AdminDashboard />
-      </ProtectedRoute>
-    );
-  }
-  // Organizer Dashboard
   if (currentPath === '/organizer') {
-    return (
-    <ProtectedRoute allowedRoles={['ORGANIZER']}>
-      <OrganizerDashboard />
-    </ProtectedRoute>
-    );
+    return <ProtectedRoute allowedRoles={['ORGANIZER']}><OrganizerDashboard /></ProtectedRoute>;
   }
-  // 404 Not Found fallback
-  return (
-    <div className="glass-panel not-found-card">
-      <h2>404 - Page Not Found</h2>
-      <p>The page you are looking for does not exist or has moved.</p>
-      <button className="btn btn-primary" onClick={() => navigate('/')}>
-        Return Home
-      </button>
-    </div>
-  );
+
+  if (currentPath === '/admin') {
+    return <ProtectedRoute allowedRoles={['ADMIN']}><div className="glass-panel not-found-card"><h2>Admin dashboard</h2><p>The admin dashboard interface has not been added yet.</p><button className="btn btn-primary" onClick={() => navigate('/')}>Return home</button></div></ProtectedRoute>;
+  }
+
+  return <div className="glass-panel not-found-card"><h2>404 - Page Not Found</h2><p>The page you are looking for does not exist or has moved.</p><button className="btn btn-primary" onClick={() => navigate('/')}>Return Home</button></div>;
 }
