@@ -1,4 +1,3 @@
-
 import { api, apiRequest } from './api';
 
 export const eventService = {
@@ -23,6 +22,10 @@ export const eventService = {
       filters.registration_open !== ''
     ) {
       params.append('registration_open', filters.registration_open);
+    }
+
+    if (filters.organizer_id) {
+      params.append('organizer_id', filters.organizer_id);
     }
 
     const queryString = params.toString();
@@ -50,6 +53,13 @@ export const eventService = {
   async deleteEvent(id, organizerId) {
     return await api.delete(`/api/events/${id}`, {
       organizer_id: organizerId,
+    });
+  },
+
+  // Get events created by logged-in organizer
+  async getMyEvents() {
+    return await api.get('/api/events/mine', {
+      requiresAuth: true,
     });
   },
 

@@ -1,131 +1,316 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useRouter } from '../context/RouterContext';
 import { useToast } from '../context/ToastContext';
 import { eventService } from '../services/eventService';
+import ParticipantsModal from '../components/ParticipantsModal';
+import EventReportModal from '../components/EventReportModal';
+import DeleteConfirmModal from '../components/DeleteConfirmModal';
 import './OrganizerDashboard.css';
-
-const formatDate = (value) => {
-  if (!value) return 'Date to be announced';
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? 'Date to be announced' : date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
-};
-const statusLabel = (event) => event.status ? String(event.status).replaceAll('_', ' ') : (event.registration_open === false ? 'REGISTRATION CLOSED' : 'ACTIVE');
 
 export default function OrganizerDashboard() {
   const { user } = useAuth();
   const { navigate } = useRouter();
-  const { success, error: showError } = useToast();
-  const [events, setEvents] = useState([]);
-  const [participants, setParticipants] = useState([]);
-  const [selectedEvent, setSelectedEvent] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [participantsLoading, setParticipantsLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState('events');
-  const [error, setError] = useState('');
-  const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
+  const { success, error } = useToast();
 
-  const loadEvents = useCallback(async () => {
-    if (!user?.id) return;
-    setLoading(true);
-    setError('');
+  const [events, setEvents] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  // Modals state
+  const [selectedEventForParticipants, setSelectedEventForParticipants] = useState(null);
+  const [participantsModalOpen, setParticipantsModalOpen] = useState(false);
+
+  const [selectedEventForReport, setSelectedEventForReport] = useState(null);
+  const [reportModalOpen, setReportModalOpen] = useState(false);
+
+  const [deletingEvent, setDeletingEvent] = useState(null);
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+
+  const loadOrganizerEvents = async () => {
+    if (!user || !user.id) return;
     try {
-      const response = await eventService.getEvents();
-      const allEvents = Array.isArray(response?.events) ? response.events : [];
-      setEvents(allEvents.filter((event) => String(event.organizer_id) === String(user.id)));
+      setLoading(true);
+      let myEvents = []; try { const res = await eventService.getMyEvents(); myEvents = res?.events || []; } catch(e) { const res = await eventService.getEvents(); myEvents = (res?.events || []).filter(e => Number(e.organizer_id) === Number(user?.id)); } setEvents(myEvents);
     } catch (err) {
-      setError(err.message || 'Unable to load your events. Please try again.');
+      console.error('Failed to load organizer events:', err);
+      error(err.message || 'Unable to retrieve your managed events.');
     } finally {
       setLoading(false);
     }
-  }, [user?.id]);
+  };
 
-  useEffect(() => { loadEvents(); }, [loadEvents]);
+  useEffect(() => {
+    loadOrganizerEvents();
+  }, [user]);
 
-  const visibleEvents = useMemo(() => events.filter((event) => {
-    const matchesSearch = [event.title, event.venue, event.description].some((value) => String(value || '').toLowerCase().includes(search.toLowerCase().trim()));
-    const active = String(event.status || 'ACTIVE').toUpperCase() === 'ACTIVE' && event.registration_open !== false;
-    return matchesSearch && (statusFilter === 'all' || (statusFilter === 'open' ? active : !active));
-  }), [events, search, statusFilter]);
-
-  const totalParticipants = events.reduce((sum, event) => sum + Number(event.participant_count || 0), 0);
-  const openEvents = events.filter((event) => event.registration_open !== false && String(event.status || 'ACTIVE').toUpperCase() === 'ACTIVE').length;
-  const closedEvents = events.length - openEvents;
-
-  const loadParticipants = async (event) => {
-    setSelectedEvent(event);
-    setParticipants([]);
-    setParticipantsLoading(true);
-    setActiveTab('participants');
+  const handleDeleteEvent = async () => {
+    if (!deletingEvent || !user?.id) return;
     try {
-      const response = await eventService.getEventParticipants(event.id);
-      setParticipants(Array.isArray(response?.participants) ? response.participants : []);
+      await eventService.deleteEvent(deletingEvent.id, user.id);
+      success(`Event "${deletingEvent.title}" deleted successfully.`);
+      setDeleteModalOpen(false);
+      setDeletingEvent(null);
+      loadOrganizerEvents();
     } catch (err) {
-      showError(err.message || 'Unable to load participants.');
-    } finally {
-      setParticipantsLoading(false);
+      error(err.message || 'Failed to delete event.');
     }
   };
 
-  const handleDelete = async (event) => {
-    if (!window.confirm(`Delete "${event.title}"? This action cannot be undone.`)) return;
+  const handleToggleRegistration = async (event) => {
     try {
-      await eventService.deleteEvent(event.id, user.id);
-      success('Event deleted successfully.');
-      if (selectedEvent?.id === event.id) {
-        setSelectedEvent(null);
-        setParticipants([]);
-        setActiveTab('events');
-      }
-      await loadEvents();
+      const newStatus = !event.registration_open;
+      await eventService.updateEvent(event.id, {
+        organizer_id: user.id,
+        title: event.title,
+        description: event.description,
+        event_date: event.event_date ? event.event_date.slice(0, 10) : '2026-12-01',
+        event_time: event.event_time ? event.event_time.slice(0, 5) : '10:00',
+        venue: event.venue,
+        capacity: event.capacity,
+        registration_open: newStatus,
+      });
+
+      success(`Registration is now ${newStatus ? 'OPEN' : 'CLOSED'} for this event.`);
+      loadOrganizerEvents();
     } catch (err) {
-      showError(err.message || 'Unable to delete this event.');
+      error(err.message || 'Failed to update registration status.');
     }
   };
+
+  // Compute metrics
+  const totalEvents = events.length;
+  const totalCapacity = events.reduce((sum, e) => sum + (Number(e.capacity) || 0), 0);
+  const totalRegistered = events.reduce((sum, e) => sum + (Number(e.registered_count) || 0), 0);
+  const avgOccupancy = totalCapacity > 0 ? Math.round((totalRegistered / totalCapacity) * 100) : 0;
 
   return (
-    <main className="organizer-dashboard">
-      <header className="organizer-heading">
-        <div><p className="eyebrow">EVENT MANAGEMENT</p><h1>Organizer dashboard</h1><p className="organizer-intro">Welcome back, {user?.name || 'Organizer'}. Manage your events and keep track of attendees.</p></div>
-        <button className="btn btn-primary" onClick={() => navigate('/events/create')}>＋ Create event</button>
-      </header>
-      <section className="organizer-stats" aria-label="Event overview">
-        <article className="organizer-stat glass-panel"><span>Total events</span><strong>{events.length}</strong><small>Events created by you</small></article>
-        <article className="organizer-stat glass-panel"><span>Registration open</span><strong>{openEvents}</strong><small>Accepting attendees</small></article>
-        <article className="organizer-stat glass-panel"><span>Participants</span><strong>{totalParticipants}</strong><small>Across your events</small></article>
-        <article className="organizer-stat glass-panel"><span>Closed / inactive</span><strong>{closedEvents}</strong><small>Not accepting registrations</small></article>
-      </section>
-      <section className="organizer-workspace glass-panel">
-        <div className="organizer-tabs" role="tablist" aria-label="Organizer sections">
-          <button role="tab" aria-selected={activeTab === 'events'} className={activeTab === 'events' ? 'active' : ''} onClick={() => setActiveTab('events')}>My events</button>
-          <button role="tab" aria-selected={activeTab === 'participants'} className={activeTab === 'participants' ? 'active' : ''} disabled={!selectedEvent} onClick={() => setActiveTab('participants')}>Participants{selectedEvent ? ` · ${selectedEvent.title}` : ''}</button>
-          <button className="organizer-refresh" onClick={loadEvents} disabled={loading}>{loading ? 'Refreshing…' : '↻ Refresh'}</button>
+    <div className="organizer-container">
+      {/* Banner */}
+      <section className="organizer-header-banner">
+        <div className="organizer-header-text">
+          <h1>Organizer Command Center</h1>
+          <p>
+            Manage your campus symposiums, track live ticket rosters, and audit event capacity.
+          </p>
         </div>
-        {error && <div className="organizer-alert" role="alert"><span>{error}</span><button onClick={loadEvents}>Try again</button></div>}
-        {activeTab === 'events' && <div className="organizer-content">
-          <div className="organizer-list-heading"><div><h2>Your events</h2><p>Review, update, and manage the events you have created.</p></div></div>
-          <div className="organizer-filters">
-            <label className="organizer-search"><span className="sr-only">Search your events</span><input className="form-control" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search by event, venue, or description" /></label>
-            <select className="form-control" aria-label="Filter events by status" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}><option value="all">All statuses</option><option value="open">Registration open</option><option value="closed">Closed / inactive</option></select>
-          </div>
-          {loading ? <div className="organizer-empty"><span className="spinner" /><p>Loading your events…</p></div> :
-            visibleEvents.length === 0 ? <div className="organizer-empty"><span className="organizer-empty-icon">▤</span><h3>{events.length ? 'No matching events' : 'Your event space is ready'}</h3><p>{events.length ? 'Try changing your search or status filter.' : 'Create your first event and it will appear here.'}</p>{!events.length && <button className="btn btn-primary" onClick={() => navigate('/events/create')}>Create your first event</button>}</div> :
-            <div className="organizer-event-list">{visibleEvents.map((event) => {
-              const active = event.registration_open !== false && String(event.status || 'ACTIVE').toUpperCase() === 'ACTIVE';
-              return <article className="organizer-event-row" key={event.id}>
-                <div className="organizer-event-date"><strong>{event.event_date ? new Date(event.event_date).toLocaleDateString(undefined, { day: '2-digit' }) : '—'}</strong><span>{event.event_date ? new Date(event.event_date).toLocaleDateString(undefined, { month: 'short' }) : 'TBD'}</span></div>
-                <div className="organizer-event-main"><div className="organizer-event-title-line"><h3>{event.title || 'Untitled event'}</h3><span className={active ? 'organizer-status is-open' : 'organizer-status is-closed'}>{active ? 'Registration open' : statusLabel(event)}</span></div><p>{event.venue || 'Venue to be announced'} · {formatDate(event.event_date)}</p><small>{Number(event.participant_count || 0)} participants · Capacity {event.capacity ?? '—'}</small></div>
-                <div className="organizer-event-actions"><button className="btn btn-outline btn-sm" onClick={() => navigate(`/events/${event.id}`)}>View</button><button className="btn btn-outline btn-sm" onClick={() => navigate(`/events/${event.id}/edit`)}>Edit</button><button className="btn btn-outline btn-sm" onClick={() => loadParticipants(event)}>Attendees</button><button className="btn btn-danger-outline btn-sm" onClick={() => handleDelete(event)}>Delete</button></div>
-              </article>;
-            })}</div>}
-        </div>}
-        {activeTab === 'participants' && <div className="organizer-content">
-          <div className="organizer-list-heading"><div><h2>Participants</h2><p>{selectedEvent ? `Registrations for ${selectedEvent.title}` : 'Select an event to view attendees.'}</p></div>{selectedEvent && <button className="btn btn-outline btn-sm" onClick={() => navigate(`/events/${selectedEvent.id}`)}>View event</button>}</div>
-          {participantsLoading ? <div className="organizer-empty"><span className="spinner" /><p>Loading participants…</p></div> : participants.length === 0 ? <div className="organizer-empty"><h3>No participants to show</h3><p>There are no participant records available for this event yet.</p></div> :
-            <div className="organizer-table-wrap"><table className="organizer-table"><thead><tr><th>Name</th><th>Email</th><th>Registration status</th><th>Registered</th></tr></thead><tbody>{participants.map((participant) => <tr key={participant.registration_id}><td>{participant.participant_name || '—'}</td><td>{participant.participant_email || '—'}</td><td><span className="organizer-status">{String(participant.registration_status || 'UNKNOWN').replaceAll('_', ' ')}</span></td><td>{participant.registered_at ? new Date(participant.registered_at).toLocaleString() : '—'}</td></tr>)}</tbody></table></div>}
-        </div>}
+        <div>
+          <button className="btn btn-primary btn-lg" onClick={() => navigate('/events/create')}>
+            + Host New Event
+          </button>
+        </div>
       </section>
-    </main>
+
+      {/* KPI Stats */}
+      <section className="organizer-kpi-grid">
+        <div className="organizer-kpi-card">
+          <span className="organizer-kpi-val">{totalEvents}</span>
+          <span className="organizer-kpi-label">Events Managed</span>
+        </div>
+        <div className="organizer-kpi-card">
+          <span className="organizer-kpi-val">{totalRegistered}</span>
+          <span className="organizer-kpi-label">Registered Attendees</span>
+        </div>
+        <div className="organizer-kpi-card">
+          <span className="organizer-kpi-val">{totalCapacity}</span>
+          <span className="organizer-kpi-label">Total Seat Capacity</span>
+        </div>
+        <div className="organizer-kpi-card">
+          <span className="organizer-kpi-val">{avgOccupancy}%</span>
+          <span className="organizer-kpi-label">Capacity Utilization</span>
+        </div>
+      </section>
+
+      {/* Managed Events List */}
+      <section className="organizer-events-card glass-panel">
+        <div className="dashboard-section-header">
+          <div>
+            <h2>My Created Events</h2>
+            <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+              Events created by {user?.name || user?.email} (Organizer ID: #{user?.id})
+            </p>
+          </div>
+          <button className="btn btn-outline btn-sm" onClick={loadOrganizerEvents}>
+            Refresh
+          </button>
+        </div>
+
+        {loading ? (
+          <div style={{ textAlign: 'center', padding: '36px' }}>
+            <div className="spinner"></div>
+            <p style={{ marginTop: '12px', color: 'var(--text-muted)' }}>Loading your hosted events...</p>
+          </div>
+        ) : events.length === 0 ? (
+          <div className="dashboard-empty-card">
+            <h3>No Events Hosted Yet</h3>
+            <p>You have not organized any events in the system yet.</p>
+            <button className="btn btn-primary btn-sm" onClick={() => navigate('/events/create')}>
+              Create Your First Event
+            </button>
+          </div>
+        ) : (
+          <div className="registrations-table-wrapper">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Event Title</th>
+                  <th>Date &amp; Time</th>
+                  <th>Venue</th>
+                  <th>Capacity &amp; Occupancy</th>
+                  <th>Registration</th>
+                  <th>Status</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {events.map((evt) => {
+                  const regCount = Number(evt.registered_count) || 0;
+                  const capacity = Number(evt.capacity) || 1;
+                  const percent = Math.min(100, Math.round((regCount / capacity) * 100));
+                  const formattedDate = evt.event_date
+                    ? new Date(evt.event_date).toLocaleDateString('en-US', {
+                        month: 'short',
+                        day: 'numeric',
+                        year: 'numeric',
+                      })
+                    : 'TBD';
+
+                  return (
+                    <tr key={evt.id}>
+                      <td>
+                        <strong>{evt.title}</strong>
+                      </td>
+                      <td>
+                        {formattedDate} {evt.event_time ? `at ${evt.event_time.slice(0, 5)}` : ''}
+                      </td>
+                      <td>{evt.venue}</td>
+                      <td>
+                        <div className="capacity-cell-wrapper">
+                          <span className="capacity-mini-text">
+                            {regCount} / {capacity} seats ({percent}%)
+                          </span>
+                          <div className="capacity-mini-bar-bg">
+                            <div
+                              className="capacity-mini-bar-fill"
+                              style={{ width: `${percent}%` }}
+                            ></div>
+                          </div>
+                        </div>
+                      </td>
+                      <td>
+                        <button
+                          type="button"
+                          className={`badge ${
+                            evt.registration_open ? 'badge-success' : 'badge-danger'
+                          }`}
+                          style={{ cursor: 'pointer', border: 'none' }}
+                          title="Click to toggle registration state"
+                          onClick={() => handleToggleRegistration(evt)}
+                        >
+                          {evt.registration_open ? 'Open (Click to Close)' : 'Closed (Click to Open)'}
+                        </button>
+                      </td>
+                      <td>
+                        <span
+                          className={`badge ${
+                            evt.status === 'ACTIVE' || !evt.status
+                              ? 'badge-primary'
+                              : 'badge-warning'
+                          }`}
+                        >
+                          {evt.status || 'ACTIVE'}
+                        </span>
+                      </td>
+                      <td>
+                        <div className="action-buttons-cell">
+                          <button
+                            className="btn btn-outline btn-sm"
+                            title="View registered attendees"
+                            onClick={() => {
+                              setSelectedEventForParticipants(evt);
+                              setParticipantsModalOpen(true);
+                            }}
+                          >
+                            Participants
+                          </button>
+                          <button
+                            className="btn btn-outline btn-sm"
+                            title="Lifecycle Report"
+                            onClick={() => {
+                              setSelectedEventForReport(evt);
+                              setReportModalOpen(true);
+                            }}
+                          >
+                            Report
+                          </button>
+                          <button
+                            className="btn btn-outline btn-sm"
+                            onClick={() => navigate(`/events/${evt.id}/edit`)}
+                          >
+                            Edit
+                          </button>
+                          <button
+                            className="btn btn-outline btn-sm"
+                            style={{ color: 'var(--danger)' }}
+                            onClick={() => {
+                              setDeletingEvent(evt);
+                              setDeleteModalOpen(true);
+                            }}
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
+      {/* Participants Modal */}
+      {selectedEventForParticipants && (
+        <ParticipantsModal
+          isOpen={participantsModalOpen}
+          event={selectedEventForParticipants}
+          onClose={() => {
+            setParticipantsModalOpen(false);
+            setSelectedEventForParticipants(null);
+          }}
+        />
+      )}
+
+      {/* Event Report Modal */}
+      {selectedEventForReport && (
+        <EventReportModal
+          isOpen={reportModalOpen}
+          event={selectedEventForReport}
+          onClose={() => {
+            setReportModalOpen(false);
+            setSelectedEventForReport(null);
+          }}
+        />
+      )}
+
+      {/* Delete Confirmation Modal */}
+      <DeleteConfirmModal
+        isOpen={deleteModalOpen}
+        title="Delete Hosted Event"
+        message={
+          deletingEvent
+            ? `Are you sure you want to delete "${deletingEvent.title}"? This will cancel all attendee registrations.`
+            : 'Are you sure you want to delete this event?'
+        }
+        confirmText="Confirm Delete"
+        onConfirm={handleDeleteEvent}
+        onCancel={() => {
+          setDeleteModalOpen(false);
+          setDeletingEvent(null);
+        }}
+      />
+    </div>
   );
 }
+
+

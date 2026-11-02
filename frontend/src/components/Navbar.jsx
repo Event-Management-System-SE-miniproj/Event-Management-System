@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useRouter, Link } from '../context/RouterContext';
@@ -20,13 +19,8 @@ export default function Navbar() {
 
   const closeMenu = () => setMobileMenuOpen(false);
 
-  // Normalize role to uppercase for consistent role checking
-  const userRole = user?.role?.toUpperCase();
-
-  // Organizer and Admin permissions
-  const isOrganizer =
-    userRole === 'ORGANIZER' || userRole === 'ADMIN';
-
+  const userRole = user?.role ? String(user.role).toUpperCase() : 'USER';
+  const isOrganizer = userRole === 'ORGANIZER' || userRole === 'ADMIN';
   const isAdmin = userRole === 'ADMIN';
 
   return (
@@ -65,36 +59,29 @@ export default function Navbar() {
               Events
             </Link>
 
-            {/* Organizer / Admin Create Event */}
+            {/* Attendee / User Dashboard */}
+            {isAuthenticated && (
+              <Link to="/dashboard" className="nav-link" onClick={closeMenu}>
+                My Dashboard
+              </Link>
+            )}
+
+            {/* Organizer Dashboard & Creation */}
             {isAuthenticated && isOrganizer && (
-              <Link
-                to="/events/create"
-                className="nav-link nav-link-create"
-                onClick={closeMenu}
-              >
-                + Create Event
-              </Link>
+              <>
+                <Link to="/organizer" className="nav-link" onClick={closeMenu}>
+                  Organizer Hub
+                </Link>
+                <Link to="/events/create" className="nav-link nav-link-create" onClick={closeMenu}>
+                  + Create Event
+                </Link>
+              </>
             )}
 
-            {/* Organizer Dashboard */}
-            {isAuthenticated && userRole === 'ORGANIZER' && (
-              <Link
-                to="/organizer"
-                className="nav-link"
-                onClick={closeMenu}
-              >
-                Organizer Dashboard
-              </Link>
-            )}
-
-            {/* Admin Dashboard */}
+            {/* Admin Console */}
             {isAuthenticated && isAdmin && (
-              <Link
-                to="/admin"
-                className="nav-link"
-                onClick={closeMenu}
-              >
-                Admin Dashboard
+              <Link to="/admin" className="nav-link" onClick={closeMenu}>
+                Admin Portal
               </Link>
             )}
           </div>
@@ -119,7 +106,7 @@ export default function Navbar() {
                     </span>
 
                     <span className="badge badge-primary user-role-badge">
-                      {userRole || 'USER'}
+                      {userRole}
                     </span>
                   </div>
                 </Link>

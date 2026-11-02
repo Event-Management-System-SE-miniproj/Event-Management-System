@@ -53,7 +53,7 @@ export default function Register() {
       errors.confirmPassword = 'Passwords do not match.';
     }
 
-    if (!['USER', 'ORGANIZER'].includes(role)) {
+    if (!['USER', 'ORGANIZER', 'ADMIN'].includes(role)) {
       errors.role = 'Please select a valid account type.';
     }
 
@@ -138,6 +138,7 @@ export default function Register() {
             >
               <option value="USER">Regular User</option>
               <option value="ORGANIZER">Event Organizer</option>
+              <option value="ADMIN">System Administrator</option>
             </select>
             {fieldErrors.role && (
               <span className="field-error-text">{fieldErrors.role}</span>

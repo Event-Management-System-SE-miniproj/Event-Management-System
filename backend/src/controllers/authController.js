@@ -1,4 +1,3 @@
-
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const pool = require("../config/database");
@@ -23,16 +22,15 @@ const registerUser = async (req, res) => {
         }
 
         // Validate and normalize role
-        // Validate and normalize role
-    const role = String(req.body.role || "user")
-        .trim()
-        .toLowerCase();
+        const role = String(req.body.role || "user")
+            .trim()
+            .toLowerCase();
 
-    if (!["user", "organizer"].includes(role)) {
-        return res.status(400).json({
-            message: "Invalid role selected"
-        });
-    }
+        if (!["user", "organizer", "admin"].includes(role)) {
+            return res.status(400).json({
+                message: "Invalid role selected"
+            });
+        }
 
         // Normalize email
         const normalizedEmail = email.trim().toLowerCase();
@@ -119,12 +117,6 @@ const loginUser = async (req, res) => {
             user.password_hash
         );
 
-        // Temporary debugging
-        console.log("LOGIN DEBUG");
-        console.log("Email received:", normalizedEmail);
-        console.log("User found:", user.email);
-        console.log("Password match:", passwordMatch);
-
         if (!passwordMatch) {
             return res.status(401).json({
                 message: "Invalid email or password"
@@ -138,7 +130,7 @@ const loginUser = async (req, res) => {
             });
         }
 
-        // Create JWT containing the actual database role
+        // Create JWT containing the actual database role (uppercase for frontend consistency)
         const token = jwt.sign(
             {
                 id: user.id,

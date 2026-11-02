@@ -23,6 +23,9 @@ export default function EventCard({ event, showActions = true }) {
     : 'Time TBD';
 
   const isRegistrationOpen = event.registration_open !== false;
+  const registeredCount = Number(event.registered_count) || 0;
+  const capacity = Number(event.capacity) || 1;
+  const isFull = registeredCount >= capacity;
 
   return (
     <div className="event-card glass-panel">
@@ -31,10 +34,12 @@ export default function EventCard({ event, showActions = true }) {
           <span>{formattedDate}</span>
         </div>
         <div className="event-status-badge">
-          {isRegistrationOpen ? (
-            <span className="badge badge-success">Registration Open</span>
+          {isFull ? (
+            <span className="badge badge-danger">Full</span>
+          ) : isRegistrationOpen ? (
+            <span className="badge badge-success">Open</span>
           ) : (
-            <span className="badge badge-danger">Closed</span>
+            <span className="badge badge-warning">Closed</span>
           )}
         </div>
       </div>
@@ -59,20 +64,40 @@ export default function EventCard({ event, showActions = true }) {
             <span className="meta-text">{formattedTime}</span>
           </div>
           <div className="event-meta-row">
-            <span className="meta-label-tag">Capacity:</span>
-            <span className="meta-text">{event.capacity} seats</span>
+            <span className="meta-label-tag">Seats:</span>
+            <span className="meta-text">
+              {registeredCount} / {capacity} registered
+            </span>
           </div>
         </div>
       </div>
 
       {showActions && (
-        <div className="event-card-footer">
+        <div className="event-card-footer" style={{ display: 'flex', gap: '8px' }}>
           <button
-            className="btn btn-primary btn-block"
+            className="btn btn-outline"
+            style={{ flex: 1 }}
             onClick={() => navigate(`/events/${event.id}`)}
           >
-            View Details
+            Details
           </button>
+          {!isFull && isRegistrationOpen ? (
+            <button
+              className="btn btn-primary"
+              style={{ flex: 1 }}
+              onClick={() => navigate(`/events/${event.id}`)}
+            >
+              Register
+            </button>
+          ) : (
+            <button
+              className="btn btn-outline"
+              style={{ flex: 1 }}
+              disabled
+            >
+              {isFull ? 'Full' : 'Closed'}
+            </button>
+          )}
         </div>
       )}
     </div>

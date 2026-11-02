@@ -5,7 +5,7 @@ import { useToast } from '../context/ToastContext';
 import './AuthForm.css';
 
 export default function Login() {
-  const { login, isAuthenticated } = useAuth();
+  const { login, isAuthenticated, user } = useAuth();
   const { navigate } = useRouter();
   const { success, error } = useToast();
 
@@ -14,12 +14,19 @@ export default function Login() {
   const [fieldErrors, setFieldErrors] = useState({});
   const [submitting, setSubmitting] = useState(false);
 
-  // If already authenticated, redirect to events
+  // If already authenticated, redirect appropriately
   useEffect(() => {
-    if (isAuthenticated) {
-      navigate('/events');
+    if (isAuthenticated && user) {
+      const role = user.role;
+      if (role === 'ADMIN') {
+        navigate('/admin');
+      } else if (role === 'ORGANIZER') {
+        navigate('/organizer');
+      } else {
+        navigate('/dashboard');
+      }
     }
-  }, [isAuthenticated, navigate]);
+  }, [isAuthenticated, user, navigate]);
 
   const validate = () => {
     const errors = {};
@@ -51,7 +58,15 @@ export default function Login() {
       setSubmitting(true);
       const res = await login(email.trim(), password);
       success(res?.message || 'Login successful. Welcome back.');
-      navigate('/events');
+
+      const role = res?.user?.role;
+      if (role === 'ADMIN') {
+        navigate('/admin');
+      } else if (role === 'ORGANIZER') {
+        navigate('/organizer');
+      } else {
+        navigate('/dashboard');
+      }
     } catch (err) {
       const msg = err.message || 'Authentication failed. Please check your credentials.';
       error(msg);

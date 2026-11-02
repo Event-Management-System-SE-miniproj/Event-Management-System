@@ -52,10 +52,20 @@ export default function Home() {
             <button className="btn btn-primary btn-lg" onClick={() => navigate('/events')}>
               Browse Events
             </button>
-            {isAuthenticated && isOrganizer ? (
-              <button className="btn btn-outline btn-lg" onClick={() => navigate('/events/create')}>
-                Create Event
-              </button>
+            {isAuthenticated ? (
+              user?.role === 'ADMIN' ? (
+                <button className="btn btn-outline btn-lg" onClick={() => navigate('/admin')}>
+                  Admin Portal &rarr;
+                </button>
+              ) : user?.role === 'ORGANIZER' ? (
+                <button className="btn btn-outline btn-lg" onClick={() => navigate('/organizer')}>
+                  Organizer Hub &rarr;
+                </button>
+              ) : (
+                <button className="btn btn-outline btn-lg" onClick={() => navigate('/dashboard')}>
+                  My Dashboard &rarr;
+                </button>
+              )
             ) : (
               <button className="btn btn-outline btn-lg" onClick={() => navigate('/register')}>
                 Register Account
