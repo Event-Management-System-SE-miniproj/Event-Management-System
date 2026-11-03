@@ -202,7 +202,7 @@ const getEventById = async (req, res) => {
              LEFT JOIN registrations r ON r.event_id = e.id
              WHERE e.id = $1
              GROUP BY e.id`,
-            [id]
+            [req.params.id]
         );
         if (!result.rows.length) return res.status(404).json({ message: "Event not found" });
         return res.status(200).json({ event: result.rows[0] });

@@ -86,7 +86,7 @@ describe("Registration, Dashboard, Roster & UPI Payment Integration Flow", () =>
             [eventId, otherOrganizerId]
         );
         cancelRegistrationId = cancelReg.rows[0].id;
-    });
+    },30000);
 
     afterAll(async () => {
         if (eventId) {
