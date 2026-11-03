@@ -33,11 +33,10 @@ export default function ParticipantsModal({ event, isOpen, onClose }) {
 
   const filtered = participants.filter((p) => {
     const q = searchTerm.toLowerCase();
-    return (
-      (p.name && p.name.toLowerCase().includes(q)) ||
-      (p.email && p.email.toLowerCase().includes(q)) ||
-      (p.ticket_code && p.ticket_code.toLowerCase().includes(q))
-    );
+    const name = (p.name || p.participant_name || '').toLowerCase();
+    const email = (p.email || p.participant_email || '').toLowerCase();
+    const code = (p.ticket_code || '').toLowerCase();
+    return name.includes(q) || email.includes(q) || code.includes(q);
   });
 
   const handlePrintRoster = () => {
@@ -94,44 +93,63 @@ export default function ParticipantsModal({ event, isOpen, onClose }) {
                     <th>Attendee Name</th>
                     <th>Email</th>
                     <th>Ticket Code</th>
+                    <th>Payment</th>
                     <th>Status</th>
                     <th>Registered At</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {filtered.map((p, idx) => (
-                    <tr key={p.registration_id || idx}>
-                      <td>{idx + 1}</td>
-                      <td>
-                        <strong>{p.name || 'Anonymous User'}</strong>
-                      </td>
-                      <td>{p.email}</td>
-                      <td>
-                        <code>{p.ticket_code || 'PENDING'}</code>
-                      </td>
-                      <td>
-                        <span
-                          className={`badge ${
-                            p.registration_status === 'REGISTERED'
-                              ? 'badge-success'
-                              : 'badge-danger'
-                          }`}
-                        >
-                          {p.registration_status || 'REGISTERED'}
-                        </span>
-                      </td>
-                      <td>
-                        {p.registered_at
-                          ? new Date(p.registered_at).toLocaleDateString('en-US', {
-                              month: 'short',
-                              day: 'numeric',
-                              hour: '2-digit',
-                              minute: '2-digit',
-                            })
-                          : 'N/A'}
-                      </td>
-                    </tr>
-                  ))}
+                  {filtered.map((p, idx) => {
+                    const participantName = p.name || p.participant_name || 'Attendee';
+                    const participantEmail = p.email || p.participant_email || 'N/A';
+                    const regStatus = p.status || p.registration_status || 'REGISTERED';
+                    const isConfirmed = regStatus === 'REGISTERED';
+
+                    return (
+                      <tr key={p.registration_id || p.id || idx}>
+                        <td>{idx + 1}</td>
+                        <td>
+                          <strong>{participantName}</strong>
+                        </td>
+                        <td>{participantEmail}</td>
+                        <td>
+                          {p.ticket_code ? (
+                            <code>{p.ticket_code}</code>
+                          ) : (
+                            <span style={{ color: 'var(--text-dim)', fontSize: '0.8rem' }}>None</span>
+                          )}
+                        </td>
+                        <td>
+                          <span
+                            className={`badge ${
+                              p.payment_status === 'SUCCESS' ? 'badge-primary' : 'badge-warning'
+                            }`}
+                          >
+                            {p.payment_status === 'SUCCESS' ? 'Paid (UPI)' : 'Pending'}
+                          </span>
+                        </td>
+                        <td>
+                          <span
+                            className={`badge ${
+                              isConfirmed ? 'badge-success' : 'badge-warning'
+                            }`}
+                          >
+                            {regStatus}
+                          </span>
+                        </td>
+                        <td>
+                          {p.registered_at || p.created_at
+                            ? new Date(p.registered_at || p.created_at).toLocaleDateString('en-US', {
+                                month: 'short',
+                                day: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit',
+                              })
+                            : 'N/A'}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -156,4 +174,3 @@ export default function ParticipantsModal({ event, isOpen, onClose }) {
     </div>
   );
 }
-

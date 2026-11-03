@@ -293,10 +293,17 @@ const getEvents = async (req, res) => {
         } = req.query;
 
         let query = `
-            SELECT *
-            FROM events
-            WHERE event_date >= CURRENT_DATE
-              AND status = 'ACTIVE'
+            SELECT e.*,
+                   COUNT(r.id) FILTER (
+                       WHERE r.status IN ('REGISTERED', 'PENDING_PAYMENT')
+                   )::INTEGER AS registered_count,
+                   COUNT(r.id) FILTER (
+                       WHERE r.status IN ('REGISTERED', 'PENDING_PAYMENT')
+                   )::INTEGER AS participant_count
+            FROM events e
+            LEFT JOIN registrations r ON r.event_id = e.id
+            WHERE e.event_date >= CURRENT_DATE
+              AND e.status = 'ACTIVE'
         `;
 
         const values = [];
@@ -306,9 +313,9 @@ const getEvents = async (req, res) => {
         if (search) {
             query += `
                 AND (
-                    title ILIKE $${paramIndex}
-                    OR description ILIKE $${paramIndex}
-                    OR venue ILIKE $${paramIndex}
+                    e.title ILIKE $${paramIndex}
+                    OR e.description ILIKE $${paramIndex}
+                    OR e.venue ILIKE $${paramIndex}
                 )
             `;
 
@@ -318,27 +325,28 @@ const getEvents = async (req, res) => {
 
         // Filter by venue
         if (venue) {
-            query += ` AND venue ILIKE $${paramIndex}`;
+            query += ` AND e.venue ILIKE $${paramIndex}`;
             values.push(`%${venue}%`);
             paramIndex++;
         }
 
         // Filter by date
         if (event_date) {
-            query += ` AND event_date = $${paramIndex}`;
+            query += ` AND e.event_date = $${paramIndex}`;
             values.push(event_date);
             paramIndex++;
         }
 
         // Filter by registration status
         if (registration_open !== undefined) {
-            query += ` AND registration_open = $${paramIndex}`;
+            query += ` AND e.registration_open = $${paramIndex}`;
             values.push(registration_open === "true");
             paramIndex++;
         }
 
         query += `
-            ORDER BY event_date ASC, event_time ASC
+            GROUP BY e.id
+            ORDER BY e.event_date ASC, e.event_time ASC
         `;
 
         const result = await pool.query(query, values);
@@ -406,9 +414,17 @@ const getEventById = async (req, res) => {
         const { id } = req.params;
 
         const result = await pool.query(
-            `SELECT *
-             FROM events
-             WHERE id = $1`,
+            `SELECT e.*,
+                    COUNT(r.id) FILTER (
+                        WHERE r.status IN ('REGISTERED', 'PENDING_PAYMENT')
+                    )::INTEGER AS registered_count,
+                    COUNT(r.id) FILTER (
+                        WHERE r.status IN ('REGISTERED', 'PENDING_PAYMENT')
+                    )::INTEGER AS participant_count
+             FROM events e
+             LEFT JOIN registrations r ON r.event_id = e.id
+             WHERE e.id = $1
+             GROUP BY e.id`,
             [id]
         );
 

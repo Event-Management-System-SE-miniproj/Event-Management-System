@@ -2,6 +2,44 @@
 const pool = require("../config/database");
 const { sendRegistrationConfirmation } = require("../services/notificationService");
 
+// Helper: Query complete registration details with ticket & payment info
+const queryUserRegistrations = async (userId) => {
+    const result = await pool.query(
+        `SELECT
+            r.id,
+            r.id AS registration_id,
+            r.event_id,
+            r.user_id,
+            r.status,
+            r.status AS registration_status,
+            r.created_at,
+            r.created_at AS registered_at,
+            e.title AS event_title,
+            e.description,
+            e.event_date,
+            e.event_time,
+            e.venue,
+            e.capacity,
+            t.id AS ticket_id,
+            t.ticket_code,
+            t.status AS ticket_status,
+            t.generated_at AS ticket_generated_at,
+            p.id AS payment_id,
+            p.status AS payment_status,
+            p.amount AS payment_amount,
+            p.payment_method,
+            p.transaction_id
+         FROM registrations r
+         JOIN events e ON e.id = r.event_id
+         LEFT JOIN tickets t ON t.registration_id = r.id AND t.status = 'VALID'
+         LEFT JOIN payments p ON p.registration_id = r.id AND p.status = 'SUCCESS'
+         WHERE r.user_id = $1
+         ORDER BY r.created_at DESC`,
+        [userId]
+    );
+    return result.rows;
+};
+
 // F-008/F-009: Register for Event + Enforce Capacity
 const registerForEvent = async (req, res) => {
     const client = await pool.connect();
@@ -135,28 +173,12 @@ const registerForEvent = async (req, res) => {
 const getMyRegistrations = async (req, res) => {
     try {
         const userId = req.user.id;
-
-        const result = await pool.query(
-            `SELECT
-                r.id AS registration_id,
-                r.event_id,
-                r.status AS registration_status,
-                r.created_at AS registered_at,
-                e.title AS event_title,
-                e.description,
-                e.event_date,
-                e.event_time,
-                e.venue
-             FROM registrations r
-             JOIN events e ON e.id = r.event_id
-             WHERE r.user_id = $1
-             ORDER BY r.created_at DESC`,
-            [userId]
-        );
+        const registrations = await queryUserRegistrations(userId);
 
         return res.status(200).json({
             message: "Registrations retrieved successfully",
-            registrations: result.rows
+            count: registrations.length,
+            registrations
         });
 
     } catch (error) {
@@ -169,13 +191,51 @@ const getMyRegistrations = async (req, res) => {
 };
 
 
-// F-012: Cancel an eligible registration
+// F-012: View registrations by specific user ID (Target user or Admin)
+const getUserRegistrations = async (req, res) => {
+    try {
+        const targetUserId = Number(req.params.userId);
+
+        if (!Number.isInteger(targetUserId) || targetUserId <= 0) {
+            return res.status(400).json({
+                message: "Invalid user ID"
+            });
+        }
+
+        const callerRole = (req.user.role || "").toUpperCase();
+        if (req.user.id !== targetUserId && callerRole !== "ADMIN") {
+            return res.status(403).json({
+                message: "You are not authorized to view registrations for this user"
+            });
+        }
+
+        const registrations = await queryUserRegistrations(targetUserId);
+
+        return res.status(200).json({
+            message: "User registrations retrieved successfully",
+            count: registrations.length,
+            registrations
+        });
+
+    } catch (error) {
+        console.error("User registrations retrieval error:", error.message);
+
+        return res.status(500).json({
+            message: "Failed to retrieve user registrations"
+        });
+    }
+};
+
+
+// F-012: Cancel an eligible registration (supports both user and admin cancellation)
 const cancelRegistration = async (req, res) => {
     const client = await pool.connect();
     let transactionStarted = false;
 
     try {
         const userId = req.user.id;
+        const userRole = (req.user.role || "").toUpperCase();
+        const isAdmin = userRole === "ADMIN";
         const registrationId = Number(req.params.id);
 
         if (!Number.isInteger(registrationId) || registrationId <= 0) {
@@ -188,11 +248,11 @@ const cancelRegistration = async (req, res) => {
         transactionStarted = true;
 
         const registrationResult = await client.query(
-            `SELECT id, status
+            `SELECT id, user_id, status
              FROM registrations
-             WHERE id = $1 AND user_id = $2
+             WHERE id = $1 AND ($2::boolean OR user_id = $3)
              FOR UPDATE`,
-            [registrationId, userId]
+            [registrationId, isAdmin, userId]
         );
 
         if (registrationResult.rows.length === 0) {
@@ -255,7 +315,7 @@ const cancelRegistration = async (req, res) => {
 };
 
 
-// F-013: View participants for organizer's event
+// F-013: View participants for organizer's event (or Admin)
 const getEventParticipants = async (req, res) => {
     try {
         const eventId = Number(req.params.eventId);
@@ -266,27 +326,51 @@ const getEventParticipants = async (req, res) => {
             });
         }
 
-        if (req.user.role !== "ORGANIZER") {
+        const userRole = (req.user.role || "").toUpperCase();
+        if (userRole !== "ORGANIZER" && userRole !== "ADMIN") {
             return res.status(403).json({
                 message: "Organizer access required"
             });
         }
 
+        const isAdmin = userRole === "ADMIN";
+
         const result = await pool.query(
             `SELECT e.id AS event_id,
                     e.title AS event_title,
+                    e.capacity AS event_capacity,
+                    e.organizer_id,
                     r.id AS registration_id,
+                    r.id AS id,
                     r.status AS registration_status,
+                    r.status AS status,
                     r.created_at AS registered_at,
+                    r.created_at AS created_at,
                     u.id AS participant_id,
+                    u.id AS user_id,
                     u.name AS participant_name,
-                    u.email AS participant_email
+                    u.name AS name,
+                    u.email AS participant_email,
+                    u.email AS email,
+                    t.ticket_code,
+                    t.status AS ticket_status,
+                    p.status AS payment_status,
+                    p.payment_method
              FROM events e
-             LEFT JOIN registrations r ON r.event_id = e.id
-             LEFT JOIN users u ON u.id = r.user_id
-             WHERE e.id = $1 AND e.organizer_id = $2
+             LEFT JOIN registrations r
+                ON r.event_id = e.id
+                AND r.status IN ('REGISTERED', 'PENDING_PAYMENT')
+             LEFT JOIN users u
+                ON u.id = r.user_id
+             LEFT JOIN tickets t
+                ON t.registration_id = r.id
+                AND t.status = 'VALID'
+             LEFT JOIN payments p
+                ON p.registration_id = r.id
+                AND p.status = 'SUCCESS'
+             WHERE e.id = $1 AND ($2::boolean OR e.organizer_id = $3)
              ORDER BY r.created_at DESC`,
-            [eventId, req.user.id]
+            [eventId, isAdmin, req.user.id]
         );
 
         if (!result.rows.length) {
@@ -297,13 +381,14 @@ const getEventParticipants = async (req, res) => {
 
         const participants = result.rows
             .filter(row => row.registration_id !== null)
-            .map(({ event_id, event_title, ...participant }) => participant);
+            .map(({ event_id, event_title, event_capacity, organizer_id, ...participant }) => participant);
 
         return res.status(200).json({
             message: "Event participants retrieved successfully",
             event: {
                 id: result.rows[0].event_id,
-                title: result.rows[0].event_title
+                title: result.rows[0].event_title,
+                capacity: result.rows[0].event_capacity
             },
             count: participants.length,
             participants
@@ -322,6 +407,7 @@ const getEventParticipants = async (req, res) => {
 module.exports = {
     registerForEvent,
     getMyRegistrations,
+    getUserRegistrations,
     cancelRegistration,
     getEventParticipants
 };

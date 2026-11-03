@@ -12,11 +12,6 @@ export default function PaymentModal({
 }) {
   const { success, error } = useToast();
 
-  const [paymentMethod, setPaymentMethod] = useState('Credit / Debit Card');
-  const [cardNumber, setCardNumber] = useState('4532 •••• •••• 8821');
-  const [cardHolder, setCardHolder] = useState('Jane Doe');
-  const [expiry, setExpiry] = useState('12/28');
-  const [cvv, setCvv] = useState('321');
   const [upiId, setUpiId] = useState('attendee@okhdfcbank');
   const [processing, setProcessing] = useState(false);
   const [errorMessage, setErrorMessage] = useState(null);
@@ -24,29 +19,47 @@ export default function PaymentModal({
   if (!isOpen || !registration || !event) return null;
 
   const registrationFee = 25.00;
+  const regId = registration.id || registration.registration_id;
+
+  const popularHandles = ['@okhdfcbank', '@oksbi', '@paytm', '@ybl', '@axl'];
+
+  const handleSelectHandle = (handle) => {
+    const base = upiId.includes('@') ? upiId.split('@')[0] : upiId;
+    setUpiId(`${base || 'attendee'}${handle}`);
+  };
 
   const handleProcessPayment = async (e) => {
     e.preventDefault();
     setProcessing(true);
     setErrorMessage(null);
 
+    const trimmedUpi = upiId.trim();
+    if (!trimmedUpi || !trimmedUpi.includes('@') || trimmedUpi.startsWith('@') || trimmedUpi.endsWith('@')) {
+      const msg = 'Please enter a valid UPI Virtual Payment Address (e.g., username@bank)';
+      setErrorMessage(msg);
+      error(msg);
+      setProcessing(false);
+      return;
+    }
+
     try {
-      const generatedTxnId = `TXN-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
+      const generatedTxnId = `UPI-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
 
       const res = await paymentService.processPayment({
-        registration_id: registration.id,
+        registration_id: regId,
         amount: registrationFee,
-        payment_method: paymentMethod,
+        payment_method: 'UPI',
+        upi_id: trimmedUpi,
         transaction_id: generatedTxnId,
       });
 
-      success(res?.message || 'Payment confirmed successfully!');
+      success(res?.message || 'UPI Payment confirmed! Admission ticket issued.');
       if (onPaymentSuccess) {
-        onPaymentSuccess(res.payment);
+        onPaymentSuccess(res.payment, res.ticket);
       }
     } catch (err) {
       console.error('Payment failure:', err);
-      const msg = err.message || 'Payment transaction failed. Please try again.';
+      const msg = err.message || 'UPI Payment transaction failed. Please try again.';
       setErrorMessage(msg);
       error(msg);
     } finally {
@@ -58,7 +71,10 @@ export default function PaymentModal({
     <div className="payment-modal-overlay" onClick={onClose}>
       <div className="payment-modal-card" onClick={(e) => e.stopPropagation()}>
         <div className="payment-modal-header">
-          <h3>Secure Event Checkout</h3>
+          <div className="payment-modal-header-title">
+            <span className="upi-badge-pill">UPI Instant</span>
+            <h3>UPI Event Registration Fee</h3>
+          </div>
           <button
             className="payment-modal-close"
             onClick={onClose}
@@ -78,10 +94,14 @@ export default function PaymentModal({
             </div>
             <div className="payment-order-row">
               <span>Registration ID:</span>
-              <span>#{registration.id}</span>
+              <span className="badge badge-info">#{regId}</span>
+            </div>
+            <div className="payment-order-row">
+              <span>Payment Mode:</span>
+              <strong style={{ color: 'var(--primary)' }}>Unified Payments Interface (UPI)</strong>
             </div>
             <div className="payment-order-total">
-              <span>Total Registration Fee:</span>
+              <span>Total Amount Due:</span>
               <span className="payment-amount-highlight">${registrationFee.toFixed(2)}</span>
             </div>
           </div>
@@ -92,125 +112,62 @@ export default function PaymentModal({
             </div>
           )}
 
-          {/* Payment Method Selector */}
-          <div className="payment-methods-tabs">
-            <button
-              type="button"
-              className={`payment-method-btn ${paymentMethod === 'Credit / Debit Card' ? 'active' : ''}`}
-              onClick={() => setPaymentMethod('Credit / Debit Card')}
-            >
-              Card
-            </button>
-            <button
-              type="button"
-              className={`payment-method-btn ${paymentMethod === 'UPI / Instant Pay' ? 'active' : ''}`}
-              onClick={() => setPaymentMethod('UPI / Instant Pay')}
-            >
-              UPI / NetBanking
-            </button>
-            <button
-              type="button"
-              className={`payment-method-btn ${paymentMethod === 'Campus Wallet' ? 'active' : ''}`}
-              onClick={() => setPaymentMethod('Campus Wallet')}
-            >
-              Campus Wallet
-            </button>
+          {/* UPI Method Header & Supported Apps */}
+          <div className="upi-method-banner">
+            <div className="upi-banner-left">
+              <span className="upi-logo-text">UPI</span>
+              <div>
+                <strong>Pay via UPI Virtual Payment Address</strong>
+                <p>Instant ticket issuance upon confirmed UPI transfer</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="upi-supported-apps">
+            <span className="upi-app-pill">GPay</span>
+            <span className="upi-app-pill">PhonePe</span>
+            <span className="upi-app-pill">Paytm</span>
+            <span className="upi-app-pill">BHIM</span>
+            <span className="upi-app-pill">Any UPI App</span>
           </div>
 
           {/* Payment Form */}
           <form id="payment-form" onSubmit={handleProcessPayment}>
-            {paymentMethod === 'Credit / Debit Card' && (
-              <div className="payment-form-grid">
-                <div className="form-group">
-                  <label className="form-label">Card Number</label>
-                  <input
-                    type="text"
-                    className="form-control"
-                    value={cardNumber}
-                    onChange={(e) => setCardNumber(e.target.value)}
-                    placeholder="4532 0000 0000 0000"
-                    required
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label className="form-label">Cardholder Name</label>
-                  <input
-                    type="text"
-                    className="form-control"
-                    value={cardHolder}
-                    onChange={(e) => setCardHolder(e.target.value)}
-                    placeholder="Full name as printed on card"
-                    required
-                  />
-                </div>
-
-                <div className="payment-form-row">
-                  <div className="form-group">
-                    <label className="form-label">Expires (MM/YY)</label>
-                    <input
-                      type="text"
-                      className="form-control"
-                      value={expiry}
-                      onChange={(e) => setExpiry(e.target.value)}
-                      placeholder="MM/YY"
-                      required
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">CVV / CVC</label>
-                    <input
-                      type="password"
-                      maxLength={4}
-                      className="form-control"
-                      value={cvv}
-                      onChange={(e) => setCvv(e.target.value)}
-                      placeholder="•••"
-                      required
-                    />
-                  </div>
-                </div>
+            <div className="form-group">
+              <label className="form-label" htmlFor="upi-vpa-input">
+                Enter UPI ID / VPA
+              </label>
+              <div className="upi-input-group">
+                <input
+                  id="upi-vpa-input"
+                  type="text"
+                  className="form-control"
+                  value={upiId}
+                  onChange={(e) => setUpiId(e.target.value)}
+                  placeholder="e.g. mobile@okhdfcbank or user@upi"
+                  required
+                  disabled={processing}
+                  autoComplete="off"
+                />
               </div>
-            )}
-
-            {paymentMethod === 'UPI / Instant Pay' && (
-              <div className="payment-form-grid">
-                <div className="form-group">
-                  <label className="form-label">Virtual Payment Address (VPA / UPI ID)</label>
-                  <input
-                    type="text"
-                    className="form-control"
-                    value={upiId}
-                    onChange={(e) => setUpiId(e.target.value)}
-                    placeholder="username@bank"
-                    required
-                  />
-                </div>
-                <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                  A secure push notification prompt will be simulated to verify instant campus settlement.
-                </p>
+              <div className="upi-handle-chips">
+                <span className="upi-chips-label">Popular handles:</span>
+                {popularHandles.map((handle) => (
+                  <button
+                    key={handle}
+                    type="button"
+                    className="upi-chip-btn"
+                    onClick={() => handleSelectHandle(handle)}
+                    disabled={processing}
+                  >
+                    {handle}
+                  </button>
+                ))}
               </div>
-            )}
-
-            {paymentMethod === 'Campus Wallet' && (
-              <div className="payment-form-grid">
-                <div className="form-group">
-                  <label className="form-label">Student / Staff ID</label>
-                  <input
-                    type="text"
-                    className="form-control"
-                    defaultValue="PES2UG24CS-EMS"
-                    required
-                  />
-                </div>
-                <div className="badge badge-success" style={{ padding: '8px' }}>
-                  Available Balance: $120.00
-                </div>
-              </div>
-            )}
+            </div>
 
             <div className="payment-security-notice">
-              <span>&#128274; 256-bit TLS Encrypted Transaction &bull; PCI-DSS Gateway Compliant</span>
+              <span>&#128274; Unified Payments Interface &bull; Real-time Simulated Settlement &bull; Instant Admission Pass</span>
             </div>
           </form>
         </div>
@@ -230,11 +187,16 @@ export default function PaymentModal({
             className="btn btn-primary"
             disabled={processing}
           >
-            {processing ? 'Processing Payment...' : `Pay $${registrationFee.toFixed(2)} & Confirm`}
+            {processing ? (
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+                <span className="spinner-sm"></span> Verifying UPI...
+              </span>
+            ) : (
+              `Pay $${registrationFee.toFixed(2)} via UPI & Confirm`
+            )}
           </button>
         </div>
       </div>
     </div>
   );
 }
-
