@@ -43,12 +43,21 @@ export default function EventDetails({ id }) {
           if (user?.id) {
             try {
               const regRes = await registrationService.getUserRegistrations(user.id);
-              const found = (regRes?.registrations || []).find(
-                (r) => Number(r.event_id) === Number(id) && r.status === 'REGISTERED'
-              );
+              const found = (regRes?.registrations || []).find((r) => {
+                const isMatch = Number(r.event_id) === Number(id);
+                const regStatus = (r.status || r.registration_status || '').toUpperCase();
+                return isMatch && ['REGISTERED', 'PENDING_PAYMENT'].includes(regStatus);
+              });
               if (found) {
                 setUserRegistration(found);
-                setTicketData(found);
+                setTicketData({
+                  ...res.event,
+                  ...found,
+                  registration_id: found.id || found.registration_id,
+                  event_title: res.event.title,
+                  attendee_name: user?.name,
+                  attendee_email: user?.email,
+                });
               }
             } catch (e) {
               console.warn('Could not check user registration status:', e.message);
@@ -87,12 +96,10 @@ export default function EventDetails({ id }) {
       setRegistering(true);
       const res = await registrationService.registerForEvent(event.id, user.id);
       const newReg = res.registration;
-      const newTicket = res.ticket;
 
       const fullTicketInfo = {
         ...event,
         ...newReg,
-        ...newTicket,
         registration_id: newReg.id,
         event_title: event.title,
         attendee_name: user.name,
@@ -101,7 +108,7 @@ export default function EventDetails({ id }) {
 
       setUserRegistration(newReg);
       setTicketData(fullTicketInfo);
-      success(res?.message || 'Registration confirmed! Your seat is reserved.');
+      success(res?.message || 'Seat reserved! Please complete UPI payment to confirm your ticket.');
 
       // Refresh event details to reflect updated registered_count
       const updatedEventRes = await eventService.getEventById(event.id);
@@ -109,13 +116,12 @@ export default function EventDetails({ id }) {
         setEvent(updatedEventRes.event);
       }
 
-      // Automatically offer payment/ticket
+      // Automatically launch UPI payment modal
       setPaymentModalOpen(true);
     } catch (err) {
       const msg = err.message || 'Registration could not be completed.';
       if (err.status === 409) {
         warning(msg);
-        // reload registration
         try {
           const regRes = await registrationService.getUserRegistrations(user.id);
           const found = (regRes?.registrations || []).find(
@@ -123,7 +129,14 @@ export default function EventDetails({ id }) {
           );
           if (found) {
             setUserRegistration(found);
-            setTicketData(found);
+            setTicketData({
+              ...event,
+              ...found,
+              registration_id: found.id || found.registration_id,
+              event_title: event?.title,
+              attendee_name: user?.name,
+              attendee_email: user?.email,
+            });
           }
         } catch (_) {}
       } else {
@@ -135,9 +148,10 @@ export default function EventDetails({ id }) {
   };
 
   const handleOpenTicket = async () => {
-    if (userRegistration?.id) {
+    const regId = userRegistration?.id || userRegistration?.registration_id;
+    if (regId) {
       try {
-        const res = await registrationService.getTicket(userRegistration.id);
+        const res = await registrationService.getTicket(regId);
         if (res?.ticket) {
           setTicketData({
             ...res.ticket,
@@ -146,15 +160,32 @@ export default function EventDetails({ id }) {
           });
         }
       } catch (e) {
-        // fallback to ticketData
+        // fallback to existing ticketData
       }
     }
     setTicketModalOpen(true);
   };
 
-  const handlePaymentSuccess = () => {
+  const handlePaymentSuccess = (payment, ticket) => {
     setPaymentModalOpen(false);
-    success('Payment successful! Your admission ticket is ready.');
+    setUserRegistration((prev) => ({
+      ...prev,
+      status: 'REGISTERED',
+      registration_status: 'REGISTERED',
+      payment_status: 'SUCCESS',
+      ticket_code: ticket?.ticket_code,
+    }));
+    setTicketData((prev) => ({
+      ...prev,
+      ...ticket,
+      ticket_code: ticket?.ticket_code,
+      status: 'REGISTERED',
+      registration_status: 'REGISTERED',
+      payment_status: 'SUCCESS',
+      attendee_name: user?.name,
+      attendee_email: user?.email,
+    }));
+    success('UPI Payment successful! Your admission ticket is ready.');
     setTicketModalOpen(true);
   };
 
@@ -179,12 +210,16 @@ export default function EventDetails({ id }) {
     );
   }
 
-  const isOrganizer = user && (user.id === event.organizer_id || user.role === 'ADMIN');
+  const userRole = (user?.role || '').toUpperCase();
+  const isOrganizer = user && (user.id === event.organizer_id || userRole === 'ADMIN');
   const isRegistrationOpen = event.registration_open !== false;
-  const registeredCount = Number(event.registered_count) || 0;
+  const registeredCount = Number(event.registered_count || event.participant_count) || 0;
   const capacity = Number(event.capacity) || 1;
   const isFull = registeredCount >= capacity;
-  const isRegistered = Boolean(userRegistration && userRegistration.status === 'REGISTERED');
+
+  const regStatus = (userRegistration?.status || userRegistration?.registration_status || '').toUpperCase();
+  const isConfirmed = regStatus === 'REGISTERED';
+  const isPendingPayment = regStatus === 'PENDING_PAYMENT';
 
   const formattedDate = event.event_date
     ? new Date(event.event_date).toLocaleDateString('en-US', {
@@ -279,23 +314,40 @@ export default function EventDetails({ id }) {
             <div className="sidebar-meta-item">
               <span className="meta-label">Registration Fee</span>
               <span className="meta-value" style={{ color: 'var(--primary)', fontWeight: 700 }}>
-                $25.00
+                $25.00 via UPI
               </span>
             </div>
           </div>
 
           <div className="registration-action-area">
-            {isRegistered ? (
+            {isConfirmed ? (
               <div className="registered-confirmation-badge">
                 <span className="badge badge-success btn-block btn-lg registered-badge-text" style={{ padding: '10px' }}>
                   ✓ You Are Registered
                 </span>
                 <p className="registered-subtext" style={{ marginTop: '8px', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-                  Your seat reservation is confirmed.
+                  Your admission ticket is confirmed and ready.
                 </p>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '12px' }}>
                   <button className="btn btn-primary btn-block" onClick={handleOpenTicket}>
                     View / Download Ticket
+                  </button>
+                  <button className="btn btn-outline btn-block" onClick={() => navigate('/dashboard')}>
+                    Go to My Dashboard
+                  </button>
+                </div>
+              </div>
+            ) : isPendingPayment ? (
+              <div className="registered-confirmation-badge">
+                <span className="badge badge-warning btn-block btn-lg" style={{ padding: '10px' }}>
+                  Seat Reserved &bull; UPI Payment Pending
+                </span>
+                <p className="registered-subtext" style={{ marginTop: '8px', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                  Complete instant UPI payment to confirm your seat and download your ticket.
+                </p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '12px' }}>
+                  <button className="btn btn-primary btn-block" onClick={() => setPaymentModalOpen(true)}>
+                    Pay $25.00 via UPI &amp; Get Ticket
                   </button>
                   <button className="btn btn-outline btn-block" onClick={() => navigate('/dashboard')}>
                     Go to My Dashboard
@@ -336,7 +388,7 @@ export default function EventDetails({ id }) {
                 onClick={handleRegister}
                 disabled={registering}
               >
-                {registering ? 'Confirming Seat...' : 'Register for Event'}
+                {registering ? 'Reserving Seat...' : 'Register for Event'}
               </button>
             )}
           </div>

@@ -6,6 +6,7 @@ on:
     branches:
       - main
       - feature/gokul
+      - 'fix/**'
   pull_request:
     branches:
       - main

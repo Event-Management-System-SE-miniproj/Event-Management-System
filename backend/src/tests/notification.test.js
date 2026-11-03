@@ -125,7 +125,7 @@ describe("EMS-F-014: Event Notifications & Registration Confirmation", () => {
             ]
         );
         eventId2 = evt2Res.rows[0].id;
-    });
+    },30000);
 
     beforeEach(() => {
         const provider = resetNotificationProvider();

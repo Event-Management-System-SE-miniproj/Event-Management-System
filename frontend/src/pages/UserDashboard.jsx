@@ -53,20 +53,24 @@ export default function UserDashboard() {
   }, [user]);
 
   const handleOpenTicket = async (reg) => {
+    const regId = reg.id || reg.registration_id;
     try {
-      const res = await registrationService.getTicket(reg.id);
+      const res = await registrationService.getTicket(regId);
       setSelectedTicket(res?.ticket || {
         ...reg,
-        registration_id: reg.id,
+        id: reg.ticket_id,
+        ticket_code: reg.ticket_code,
+        registration_id: regId,
         attendee_name: user?.name,
       });
       setTicketModalOpen(true);
     } catch (err) {
       console.error('Failed to fetch ticket:', err);
-      // Fallback to reg data
       setSelectedTicket({
         ...reg,
-        registration_id: reg.id,
+        id: reg.ticket_id,
+        ticket_code: reg.ticket_code,
+        registration_id: regId,
         attendee_name: user?.name,
       });
       setTicketModalOpen(true);
@@ -74,8 +78,10 @@ export default function UserDashboard() {
   };
 
   const handleOpenPayment = (reg) => {
+    const regId = reg.id || reg.registration_id;
     setSelectedPaymentReg({
       ...reg,
+      id: regId,
       event: { title: reg.event_title, venue: reg.venue },
     });
     setPaymentModalOpen(true);
@@ -83,7 +89,7 @@ export default function UserDashboard() {
 
   const handlePaymentSuccess = () => {
     setPaymentModalOpen(false);
-    success('Payment confirmed! Ticket is now available.');
+    success('UPI Payment confirmed! Admission ticket is now available.');
     loadData();
   };
 
@@ -100,8 +106,16 @@ export default function UserDashboard() {
     }
   };
 
-  const activeRegistrations = registrations.filter((r) => r.status === 'REGISTERED');
-  const validTickets = registrations.filter((r) => r.status === 'REGISTERED' && r.ticket_code);
+  const activeRegistrations = registrations.filter((r) => {
+    const status = (r.status || r.registration_status || '').toUpperCase();
+    return status === 'REGISTERED' || status === 'PENDING_PAYMENT';
+  });
+
+  const validTickets = registrations.filter((r) => {
+    const status = (r.status || r.registration_status || '').toUpperCase();
+    const ticketStatus = (r.ticket_status || '').toUpperCase();
+    return Boolean(r.ticket_code && (ticketStatus === 'VALID' || status === 'REGISTERED'));
+  });
 
   return (
     <div className="dashboard-container">
@@ -110,7 +124,7 @@ export default function UserDashboard() {
         <div className="welcome-text">
           <h1>Welcome back, {user?.name || 'Attendee'}!</h1>
           <p>
-            Attendee Dashboard &bull; Track registrations, view digital admission tickets, and explore events.
+            Attendee Dashboard &bull; Track registrations, view digital admission tickets, and explore campus events.
           </p>
         </div>
         <div className="welcome-actions">
@@ -179,7 +193,13 @@ export default function UserDashboard() {
               </thead>
               <tbody>
                 {registrations.map((reg) => {
-                  const isRegistered = reg.status === 'REGISTERED';
+                  const regId = reg.id || reg.registration_id;
+                  const status = (reg.status || reg.registration_status || '').toUpperCase();
+                  const isRegistered = status === 'REGISTERED';
+                  const isPendingPayment = status === 'PENDING_PAYMENT';
+                  const isFailed = status === 'PAYMENT_FAILED';
+                  const isCancelled = status === 'CANCELLED';
+
                   const formattedDate = reg.event_date
                     ? new Date(reg.event_date).toLocaleDateString('en-US', {
                         month: 'short',
@@ -189,7 +209,7 @@ export default function UserDashboard() {
                     : 'TBD';
 
                   return (
-                    <tr key={reg.id}>
+                    <tr key={regId}>
                       <td>
                         <strong>{reg.event_title}</strong>
                       </td>
@@ -200,19 +220,35 @@ export default function UserDashboard() {
                       <td>
                         <span
                           className={`badge ${
-                            isRegistered ? 'badge-success' : 'badge-danger'
+                            isRegistered
+                              ? 'badge-success'
+                              : isPendingPayment
+                              ? 'badge-warning'
+                              : 'badge-danger'
                           }`}
                         >
-                          {reg.status}
+                          {status || 'REGISTERED'}
                         </span>
                       </td>
                       <td>
                         <span
                           className={`badge ${
-                            reg.payment_status === 'SUCCESS' ? 'badge-primary' : 'badge-warning'
+                            reg.payment_status === 'SUCCESS' || isRegistered
+                              ? 'badge-primary'
+                              : isFailed
+                              ? 'badge-danger'
+                              : isCancelled
+                              ? 'badge-danger'
+                              : 'badge-warning'
                           }`}
                         >
-                          {reg.payment_status || 'Free / Confirmed'}
+                          {reg.payment_status === 'SUCCESS' || isRegistered
+                            ? 'Paid (UPI)'
+                            : isFailed
+                            ? 'Payment Failed'
+                            : isCancelled
+                            ? 'Cancelled'
+                            : 'UPI Pending'}
                         </span>
                       </td>
                       <td>
@@ -225,36 +261,36 @@ export default function UserDashboard() {
                       <td>
                         <div className="action-buttons-cell">
                           {isRegistered && (
-                            <>
-                              <button
-                                className="btn btn-primary btn-sm"
-                                onClick={() => handleOpenTicket(reg)}
-                              >
-                                View Ticket
-                              </button>
-                              {reg.payment_status !== 'SUCCESS' && (
-                                <button
-                                  className="btn btn-outline btn-sm"
-                                  onClick={() => handleOpenPayment(reg)}
-                                >
-                                  Pay Fee
-                                </button>
-                              )}
-                              <button
-                                className="btn btn-outline btn-sm"
-                                style={{ color: 'var(--danger)' }}
-                                onClick={() => {
-                                  setCancellingRegId(reg.id);
-                                  setCancelModalOpen(true);
-                                }}
-                              >
-                                Cancel
-                              </button>
-                            </>
+                            <button
+                              className="btn btn-primary btn-sm"
+                              onClick={() => handleOpenTicket(reg)}
+                            >
+                              View Ticket
+                            </button>
                           )}
-                          {!isRegistered && (
+                          {(isPendingPayment || isFailed) && (
+                            <button
+                              className="btn btn-primary btn-sm"
+                              onClick={() => handleOpenPayment(reg)}
+                            >
+                              {isFailed ? 'Retry UPI Pay' : 'Pay via UPI'}
+                            </button>
+                          )}
+                          {!isCancelled && (
+                            <button
+                              className="btn btn-outline btn-sm"
+                              style={{ color: 'var(--danger)' }}
+                              onClick={() => {
+                                setCancellingRegId(regId);
+                                setCancelModalOpen(true);
+                              }}
+                            >
+                              Cancel
+                            </button>
+                          )}
+                          {isCancelled && (
                             <span style={{ color: 'var(--text-dim)', fontSize: '0.825rem' }}>
-                              Registration Closed
+                              Cancelled
                             </span>
                           )}
                         </div>
@@ -322,4 +358,3 @@ export default function UserDashboard() {
     </div>
   );
 }
-

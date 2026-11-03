@@ -3,26 +3,41 @@ const pool = require("../config/database");
 // F-011: Retrieve registration confirmation and ticket
 const getTicket = async (req, res) => {
     try {
-        const { registration_id } = req.params;
+        const registration_id = Number(req.params.registration_id || req.params.id);
+
+        if (!Number.isInteger(registration_id) || registration_id <= 0) {
+            return res.status(400).json({
+                message: "Invalid registration ID"
+            });
+        }
 
         const result = await pool.query(
             `SELECT
+                r.id AS id,
                 r.id AS registration_id,
                 r.status AS registration_status,
+                r.status AS status,
+                e.id AS event_id,
                 e.title AS event_title,
+                e.title AS title,
                 e.event_date,
                 e.event_time,
                 e.venue,
+                u.id AS user_id,
                 u.name AS attendee_name,
                 u.email AS attendee_email,
                 p.status AS payment_status,
+                p.amount AS payment_amount,
+                p.payment_method,
+                p.transaction_id,
+                t.id AS ticket_id,
                 t.ticket_code,
                 t.status AS ticket_status,
                 t.generated_at
              FROM registrations r
              JOIN events e ON e.id = r.event_id
              JOIN users u ON u.id = r.user_id
-             JOIN payments p
+             LEFT JOIN payments p
                 ON p.registration_id = r.id
                 AND p.status = 'SUCCESS'
              JOIN tickets t ON t.registration_id = r.id

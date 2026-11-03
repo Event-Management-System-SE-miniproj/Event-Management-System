@@ -484,7 +484,7 @@ describe("EMS-F-015: Administrative Management & Audit Logging", () => {
 
     test("Administrative actions generate audit log records", async () => {
         const auditRes = await request(app)
-            .get("/api/admin/audit-logs")
+            .get(`/api/admin/audit-logs?adminId=${adminId}`)
             .set("Authorization", `Bearer ${adminToken}`);
 
         expect(auditRes.statusCode).toBe(200);
