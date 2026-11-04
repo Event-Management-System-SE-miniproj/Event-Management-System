@@ -84,7 +84,7 @@ const deleteEvent = async (req, res) => {
             console.error("Failed to query participants before deletion:", fetchErr.message);
         }
 
-        const result = await pool.query(`DELETE FROM events WHERE id = $1 AND organizer_id = $2 RETURNING *`, [id, organizer_id]);
+        const result = await pool.query("DELETE FROM events WHERE id = $1 AND organizer_id = $2 RETURNING *", [id, organizer_id]);
         if (!result.rows.length) return res.status(404).json({ message: "Event not found or organizer is not authorized" });
 
         for (const p of registeredParticipants) {

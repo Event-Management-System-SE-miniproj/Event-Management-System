@@ -354,7 +354,7 @@ const getAdminEvents = async (req, res) => {
             paramIndex++;
         }
 
-        query += ` ORDER BY e.created_at DESC`;
+        query += " ORDER BY e.created_at DESC";
 
         const result = await pool.query(query, values);
 

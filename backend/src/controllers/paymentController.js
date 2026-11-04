@@ -65,7 +65,7 @@ const processPayment = async (req, res) => {
         if (existingPayment.rows.length > 0) {
             // Check if ticket also already exists
             const existingTicket = await client.query(
-                `SELECT * FROM tickets WHERE registration_id = $1`,
+                "SELECT * FROM tickets WHERE registration_id = $1",
                 [regId]
             );
 
