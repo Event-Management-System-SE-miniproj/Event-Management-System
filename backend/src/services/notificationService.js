@@ -191,14 +191,14 @@ const sendRegistrationConfirmation = async (registrationId, eventId, userId) => 
     try {
         // Query event details
         const eventRes = await pool.query(
-            `SELECT title, event_date, event_time, venue FROM events WHERE id = $1`,
+            "SELECT title, event_date, event_time, venue FROM events WHERE id = $1",
             [eventId]
         );
         const event = eventRes.rows[0] || {};
 
         // Query user details
         const userRes = await pool.query(
-            `SELECT name, email FROM users WHERE id = $1`,
+            "SELECT name, email FROM users WHERE id = $1",
             [userId]
         );
         const user = userRes.rows[0] || {
@@ -208,7 +208,7 @@ const sendRegistrationConfirmation = async (registrationId, eventId, userId) => 
 
         // Query ticket if already exists
         const ticketRes = await pool.query(
-            `SELECT ticket_code FROM tickets WHERE registration_id = $1`,
+            "SELECT ticket_code FROM tickets WHERE registration_id = $1",
             [registrationId]
         );
         const ticket = ticketRes.rows[0];
@@ -231,7 +231,7 @@ const sendRegistrationConfirmation = async (registrationId, eventId, userId) => 
 
     } catch (error) {
         const safeMsg = sanitizeErrorMessage(error.message);
-        console.error(`[NotificationService] Failed to send registration confirmation:`, safeMsg);
+        console.error("[NotificationService] Failed to send registration confirmation:", safeMsg);
         return { success: false, error: "Registration confirmation delivery failed" };
     }
 };
@@ -243,7 +243,7 @@ const sendEventNotification = async (eventId, actionType, { title, message }) =>
     try {
         // Fetch event
         const eventRes = await pool.query(
-            `SELECT id, title, event_date, event_time, venue FROM events WHERE id = $1`,
+            "SELECT id, title, event_date, event_time, venue FROM events WHERE id = $1",
             [eventId]
         );
 
@@ -295,7 +295,7 @@ const sendEventNotification = async (eventId, actionType, { title, message }) =>
 
     } catch (error) {
         const safeMsg = sanitizeErrorMessage(error.message);
-        console.error(`[NotificationService] Failed to send event notifications:`, safeMsg);
+        console.error("[NotificationService] Failed to send event notifications:", safeMsg);
         return [];
     }
 };
@@ -331,7 +331,7 @@ const getUserNotifications = async (userId, filters = {}) => {
         paramIndex++;
     }
 
-    query += ` ORDER BY created_at DESC`;
+    query += " ORDER BY created_at DESC";
 
     if (filters.limit) {
         query += ` LIMIT $${paramIndex}`;

@@ -146,7 +146,7 @@ describe("EMS-F-014: Event Notifications & Registration Confirmation", () => {
 
         // Verify notification in DB
         const dbNotif = await pool.query(
-            `SELECT * FROM notifications WHERE registration_id = $1 AND type = 'REGISTRATION_CONFIRMATION'`,
+            "SELECT * FROM notifications WHERE registration_id = $1 AND type = 'REGISTRATION_CONFIRMATION'",
             [registrationId1]
         );
 
@@ -200,7 +200,7 @@ describe("EMS-F-014: Event Notifications & Registration Confirmation", () => {
 
         // Verify only 1 confirmation notification exists for this registration
         const countRes = await pool.query(
-            `SELECT COUNT(*) FROM notifications WHERE registration_id = $1 AND type = 'REGISTRATION_CONFIRMATION'`,
+            "SELECT COUNT(*) FROM notifications WHERE registration_id = $1 AND type = 'REGISTRATION_CONFIRMATION'",
             [registrationId1]
         );
         expect(parseInt(countRes.rows[0].count, 10)).toBe(1);
@@ -237,21 +237,21 @@ describe("EMS-F-014: Event Notifications & Registration Confirmation", () => {
 
         // Registered user1 and user2 should receive the update notification
         const user1Notifs = await pool.query(
-            `SELECT * FROM notifications WHERE user_id = $1 AND type = 'EVENT_UPDATE' AND event_id = $2`,
+            "SELECT * FROM notifications WHERE user_id = $1 AND type = 'EVENT_UPDATE' AND event_id = $2",
             [userId1, eventId]
         );
         expect(user1Notifs.rows.length).toBe(1);
         expect(user1Notifs.rows[0].message).toContain("Auditorium Prime");
 
         const user2Notifs = await pool.query(
-            `SELECT * FROM notifications WHERE user_id = $1 AND type = 'EVENT_UPDATE' AND event_id = $2`,
+            "SELECT * FROM notifications WHERE user_id = $1 AND type = 'EVENT_UPDATE' AND event_id = $2",
             [userId2, eventId]
         );
         expect(user2Notifs.rows.length).toBe(1);
 
         // Unregistered user MUST NOT receive any notification
         const unregNotifs = await pool.query(
-            `SELECT * FROM notifications WHERE user_id = $1 AND event_id = $2`,
+            "SELECT * FROM notifications WHERE user_id = $1 AND event_id = $2",
             [userIdUnregistered, eventId]
         );
         expect(unregNotifs.rows.length).toBe(0);
@@ -282,7 +282,7 @@ describe("EMS-F-014: Event Notifications & Registration Confirmation", () => {
 
         // Verify notification was recorded as FAILED rather than crashing or disappearing
         const notifDb = await pool.query(
-            `SELECT * FROM notifications WHERE registration_id = $1`,
+            "SELECT * FROM notifications WHERE registration_id = $1",
             [regId]
         );
         expect(notifDb.rows.length).toBe(1);
@@ -391,7 +391,7 @@ describe("EMS-F-014: Event Notifications & Registration Confirmation", () => {
 
         // Verify user1 received EVENT_CANCELLED notification
         const cancelNotifs = await pool.query(
-            `SELECT * FROM notifications WHERE user_id = $1 AND type = 'EVENT_CANCELLED' AND event_id = $2`,
+            "SELECT * FROM notifications WHERE user_id = $1 AND type = 'EVENT_CANCELLED' AND event_id = $2",
             [userId1, tempEvtId]
         );
         expect(cancelNotifs.rows.length).toBe(1);
@@ -399,7 +399,7 @@ describe("EMS-F-014: Event Notifications & Registration Confirmation", () => {
 
         // Verify unregistered user did not receive it
         const unregCancel = await pool.query(
-            `SELECT * FROM notifications WHERE user_id = $1 AND event_id = $2`,
+            "SELECT * FROM notifications WHERE user_id = $1 AND event_id = $2",
             [userIdUnregistered, tempEvtId]
         );
         expect(unregCancel.rows.length).toBe(0);
@@ -510,7 +510,7 @@ describe("EMS-F-014: Event Notifications & Registration Confirmation", () => {
 
         // Notification record is marked FAILED in DB
         const failedNotifs = await pool.query(
-            `SELECT * FROM notifications WHERE event_id = $1 AND user_id = $2`,
+            "SELECT * FROM notifications WHERE event_id = $1 AND user_id = $2",
             [tempId, userId2]
         );
         expect(failedNotifs.rows.length).toBe(1);

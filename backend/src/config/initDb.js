@@ -89,10 +89,14 @@ const initDb = () => {
                 if (client) {
                     try {
                         await client.query("SELECT pg_advisory_unlock(987654321)");
-                    } catch (_) {}
+                    } catch (_) {
+                        // Ignore errors while releasing the advisory lock during cleanup.
+                    }
                     try {
                         client.release();
-                    } catch (_) {}
+                    } catch (_) {
+                        // Ignore errors while releasing the database client.
+                    }
                 }
             }
         })();
