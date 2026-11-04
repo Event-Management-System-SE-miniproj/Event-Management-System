@@ -178,11 +178,3 @@ jobs:
 
       - name: Run backend tests with coverage
         run: npm run test:coverage
-
-      - name: Upload coverage report
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: backend-coverage-report
-          path: backend/coverage/
-          if-no-files-found: ignore
